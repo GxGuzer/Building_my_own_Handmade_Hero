@@ -2,9 +2,8 @@
 #include <iostream>
 using namespace std;
 
-int main() {
+void main() {
   cout << "Hello World!";
-  return 0;
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,

@@ -11,3 +11,8 @@ when files references each other, requests resources from each other, is the lin
 ### WinMain
 
 The machine never know the linkage of your program unless you're building the OS itself, this function makes sure that your program will be linked to Windows to run it properly, most of high-level compilers keep this hidden as it's just a default configuration (sort of).
+
+### #include
+
+´´´#include´´´
+works like a import and receive an directory between 'less than' and 'greater than' (<>).

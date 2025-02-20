@@ -3,6 +3,8 @@
 using namespace std;
 
 void main() {
+  int t = 16;
+  int *p = &t;
   cout << "Hello World!";
 }
 

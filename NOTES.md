@@ -16,5 +16,20 @@ whatever is in WinMain doesn't run, because it's an int i guess, now i really do
 
 ### #include
 
-´´´#include´´´
+```#include```
 works like a import and receive an directory between 'less than' and 'greater than' (<>).
+
+
+ \- Computer are able to pull only parts of register making no neecesity to extra work for lower base numbers.
+
+### Pointer
+
+Pointers are basically pointing to where a variable is located in memory, just a "locator", it guards only the address of whatever it's pointing.
+
+an asterisk (*) makes a variable in a pointer and an ampersand (&) indicates the memory location of an variable.
+
+```
+int x = 10; // any variable
+int *toX; // * indicates a pointer
+toX = &x // & indicates the memorey location of x
+```

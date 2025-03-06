@@ -10,5 +10,5 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 }
 
 void main() {
-  printf("Hello World!");
+  printf("Hello World!\n");
 }

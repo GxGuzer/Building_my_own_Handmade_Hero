@@ -113,3 +113,15 @@ A structure is essentially a list of different types of values.
 
 in C++ structures supports function and inheritance, C does not.
 in C structures are always treated like a Data Type.
+
+### Cast
+
+essentially can "convert" types of values, it can treat a type like another.
+
+```
+char castTest = 'c';    // create a char
+cout << castTest;       // output the char
+cout << "\n";           // separate a line
+cout << (int)castTest;  // outputs an int value for char instead of char itself
+```
+

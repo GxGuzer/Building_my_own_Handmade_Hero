@@ -1,6 +1,6 @@
 # Notes
 
-These are my notes along the development of the project.
+These are my notes along the Intro to C series that comes before the actual project.
 
 ### Linking Stage
 

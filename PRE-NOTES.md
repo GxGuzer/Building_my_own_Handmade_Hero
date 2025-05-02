@@ -20,7 +20,7 @@ whatever is in WinMain doesn't run, because it's an int i guess, now i really do
 works like a import and receive an directory between 'less than' and 'greater than' (<>).
 
 
- \- Computer are able to pull only parts of register making no neecesity to extra work for lower base numbers.
+ \- Computer are able to pull only parts of register making no necesity to extra work for lower base numbers.
 
 ### Pointer
 

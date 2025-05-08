@@ -7,39 +7,32 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
   switch (Message)
   {
   case WM_SIZE:
-    cout << "Resize";
+    cout << "Resize" << endl;
   break;
 
   case WM_DESTROY:
+    cout << "Destroy" << endl;
     PostQuitMessage(0);
-    cout << "Destroy";
   break;
 
   case WM_ACTIVATEAPP:
-    cout << "Active/Deactive";
+    cout << "Active/Deactive" << endl;
   break;
   
   case WM_PAINT:
     {
     PAINTSTRUCT paint;
     HDC deviceContext = BeginPaint(Window, &paint);
-    /*
-    int X = paint.rcPaint.left;
-    int Y = paint.rcPaint.top;
-    int W = paint.rcPaint.right - paint.rcPaint.left;
-    int H = paint.rcPaint.bottom - paint.rcPaint.top;
-    PatBlt(deviceContext, X, Y, W, H, BLACKNESS);
-    */
     FillRect(deviceContext, &paint.rcPaint, (HBRUSH)(COLOR_WINDOW+1));
     EndPaint(Window, &paint);
     }
   break;
 
   case WM_CLOSE:
-    if(MessageBox(Window, "Get Out?", "Close the game?" MB_OKCANCEL) == IDOK) {
+    if(MessageBox(Window, "Get Out?", "Close the game?", MB_OKCANCEL) == IDOK) {
       DestroyWindow(Window);
     }
-    cout << "Close";
+    cout << "Close" << endl;
   break;
 
   default:
@@ -52,54 +45,46 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
 int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
   PSTR ComandLine, int ComandShow)
 {
+  /*
+  if(AllocConsole()) {
+    freopen("CONOUT$", "w", stdout);
+    freopen("CONOUT$", "w", stderr);
+    cout << "Console allocated" << endl;
+  }
+  */
 
   WNDCLASS WindowClass = {};
   WindowClass.lpfnWndProc = WindowProc;
   WindowClass.hInstance = Instance;
   WindowClass.lpszClassName = "HandmadeHeroWindowClass";
   
-  RegisterClass(&WindowClass);
-
+  if(!RegisterClass(&WindowClass)) {
+    DWORD error = GetLastError();
+    cout << "Register failed with: " << error << endl;
+  }
+  
   HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-    CW_DEFAULT, CW_DEFAULT, CW_DEFAULT, CW_DEFAULT, 0, 0, Instance, 0);
-
+    100, 100, 640, 480, 0, 0, Instance, 0);
+  
   if(HandmadeHeroWindow == NULL) {
+    DWORD error = GetLastError();
+    cout << "Window created null or with error: " << error << endl;
     return 0;
   }
 
   ShowWindow(HandmadeHeroWindow, ComandShow);
-
+  
   MSG message = {};
   while(GetMessage(&message, 0, 0, 0) > 0) {
     TranslateMessage(&message);
     DispatchMessage(&message);
   }
+
   /*
-  if(RegisterClass(&WindowClass)) {
-
-    HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-      CW_DEFAULT, CW_DEFAULT, CW_DEFAULT, CW_DEFAULT, 0, 0, Instance, 0);
-    
-    if(HandmadeHeroWindow) {
-      for(;;) {
-        MSG message;
-        BOOL messageResult = GetMessage(&message, 0, 0, 0);
-        if(messageResult > 0) {
-          TranslateMessage(&message);
-          DispatchMessage(&message);
-        }else {
-
-        }
-        
-      }
-    }else {
-      //Logging
-    }
-  }else {
-    //Logging
-  }*/
-
-  //ShowWindow(HandmadeHeroWindow, ComandShow);
+  if(GetConsoleWindow() != NULL) {
+    FreeConsole();
+  }
+  */
 
   return 0;
 }

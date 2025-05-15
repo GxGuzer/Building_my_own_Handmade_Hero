@@ -3,6 +3,8 @@
     "files.associations": {
         "iostream": "cpp",
         "atomic": "cpp",
-        "xstring": "cpp"
+        "xstring": "cpp",
+        "ios": "cpp",
+        "xiosbase": "cpp"
     }
 }

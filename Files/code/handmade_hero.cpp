@@ -8,6 +8,7 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
   {
   case WM_SIZE:
     cout << "Resize" << endl;
+    InvalidateRect(Window, NULL, true);
   break;
 
   case WM_DESTROY:
@@ -20,12 +21,60 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
   break;
   
   case WM_PAINT:
-    {
+  {
     PAINTSTRUCT paint;
     HDC deviceContext = BeginPaint(Window, &paint);
-    FillRect(deviceContext, &paint.rcPaint, (HBRUSH)(COLOR_WINDOW+1));
+
+    COLORREF white = RGB(255, 255, 255);
+    COLORREF red = RGB(255, 0, 0);
+    COLORREF blue = RGB(0, 0, 255);
+    COLORREF green = RGB(0, 255, 0);
+    COLORREF yellow = RGB(255, 255, 0);
+
+    RECT redArea;
+    redArea.left = paint.rcPaint.left;
+    redArea.top = paint.rcPaint.top;
+    redArea.right = paint.rcPaint.right/2;
+    redArea.bottom = paint.rcPaint.bottom/2;
+
+    RECT blueArea;
+    blueArea.left = paint.rcPaint.left+(paint.rcPaint.right/2);
+    blueArea.top = paint.rcPaint.top;
+    blueArea.right = paint.rcPaint.right;
+    blueArea.bottom = paint.rcPaint.bottom/2;
+
+    RECT greenArea;
+    greenArea.left = paint.rcPaint.left;
+    greenArea.top = paint.rcPaint.top+(paint.rcPaint.bottom/2);
+    greenArea.right = paint.rcPaint.right/2;
+    greenArea.bottom = paint.rcPaint.bottom;
+
+    RECT yellowArea;
+    yellowArea.left = paint.rcPaint.left+(paint.rcPaint.right/2);
+    yellowArea.top = paint.rcPaint.top+(paint.rcPaint.bottom/2);
+    yellowArea.right = paint.rcPaint.right;
+    yellowArea.bottom = paint.rcPaint.bottom;
+
+    HBRUSH whiteBrush = CreateSolidBrush(white);
+    HBRUSH redBrush = CreateSolidBrush(red);
+    HBRUSH blueBrush = CreateSolidBrush(blue);
+    HBRUSH greenBrush = CreateSolidBrush(green);
+    HBRUSH yellowBrush = CreateSolidBrush(yellow);
+
+    //FillRect(deviceContext, &paint.rcPaint, whiteBrush);
+    FillRect(deviceContext, &redArea, redBrush);
+    FillRect(deviceContext, &blueArea, blueBrush);
+    FillRect(deviceContext, &greenArea, greenBrush);
+    FillRect(deviceContext, &yellowArea, yellowBrush);
+
+    DeleteObject(whiteBrush);
+    DeleteObject(redBrush);
+    DeleteObject(blueBrush);
+    DeleteObject(greenBrush);
+    DeleteObject(yellowBrush);
+
     EndPaint(Window, &paint);
-    }
+  }
   break;
 
   case WM_CLOSE:

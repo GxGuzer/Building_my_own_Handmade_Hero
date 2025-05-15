@@ -43,6 +43,8 @@ typedef struct playerStats { //the name of the struct is now actually irrelevant
 PlayerStats playerStats;
 ```
 
+# 05/08/2025
+
 ## Summary on creating a window
 
 ### Windows entry point
@@ -73,3 +75,21 @@ All these three function receives a `MSG` struct pointer as a parameter.
 ### Showing the window
 
 `ShowWindow()` is a function that shows the window on screen, that's simple, it receives the window handle and a value that tells how the window should be shown.
+
+# 15/05/2025
+
+## Painting a window
+
+`COLORREF` is a data type of variable designed to hold color info, it's a 32-bit number where the 24 lower bits describes the RGB info.
+`HBRUSH` is a handle to a brush tool used by Windows GDI (Graphics Device Interface) used to paint polygons.
+
+We can paint our window with `BeginPaint()` and `EndPaint()` functions, they receive the window handle of the desired window to paint and a pointer to a `PAINTSTRUCT` struct.
+
+`FillRect()` is a function to paint a rectangular area of our window, it receives a device context variable, a `RECT` struct (the `PAINTSTRUCT` has one) and a `HBRUSH` to be used.
+
+`PAINTSTRUCT` only marks invalid areas to paint (areas to be painted), the whole window is invalid when it first launches but then only new area by resizing are invalid and will be painted.
+
+To repaint previously painted area we need to invalidate them, we can use `InvalidateRect()` function to do that, it receives the window handle, a pointer to a `RECT` structure to mark the area to be invalidated (if `NULL` the whole window will be marked) and a boolean to set if the area must be erased (true) or not (false).
+*//I've seen no difference with the `FillRect()` maybe it happen on more complex paintings.*
+
+We can also revalidate an area with `ValidateRect()` function (this means, mark a rectangular area that should not be redrawn), it receives a window handle and a pointer to a `RECT` struct.

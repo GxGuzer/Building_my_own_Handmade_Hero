@@ -2,18 +2,20 @@
 #include <iostream>
 using namespace std;
 
+static bool Running;
+
 LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam) {
   LRESULT Result = 0;
   switch (Message)
   {
   case WM_SIZE:
-    cout << "Resize" << endl;
     InvalidateRect(Window, NULL, true);
   break;
 
   case WM_DESTROY:
-    cout << "Destroy" << endl;
-    PostQuitMessage(0);
+    // TODO: vai ter um handle de erro aqui com recriação de janela?
+    // Running = false;
+    PostQuitMessage(0); 
   break;
 
   case WM_ACTIVATEAPP:

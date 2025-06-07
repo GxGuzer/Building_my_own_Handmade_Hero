@@ -9,7 +9,7 @@ i'm using VSC to just write the code, i compile it and run it on the terminal, i
 
 # 04/22/2025
 
-**typedef** is a way to making a *"new"* type of data to be called be its new name, mostly used in old C programs, for example:
+`typedef` is a way to making a *"new"* type of data to be called be its new name, mostly used in old C programs, for example:
 
 ```
 // in C
@@ -76,7 +76,7 @@ All these three function receives a `MSG` struct pointer as a parameter.
 
 `ShowWindow()` is a function that shows the window on screen, that's simple, it receives the window handle and a value that tells how the window should be shown.
 
-# 15/05/2025
+# 05/15/2025
 
 ## Painting a window
 
@@ -93,3 +93,53 @@ To repaint previously painted area we need to invalidate them, we can use `Inval
 *//I've seen no difference with the `FillRect()` maybe it happen on more complex paintings.*
 
 We can also revalidate an area with `ValidateRect()` function (this means, mark a rectangular area that should not be redrawn), it receives a window handle and a pointer to a `RECT` struct.
+
+# 06/07/2025
+
+## Resource Handling tips
+
+When doing an application people like to have full control of the creation and destruction of resources individualy, even when it's not neccessary.
+
+Think on these resources as chunks of resources instead of each individual resource.
+
+About window, window handlers and etc. there's no need to clean that up because, first: we want at least one window through the entire execution, second: Windows automatically cleans all that up when the application is terminated.
+
+## Definitions of `static`
+
+From what i understand `static` when used in a variable means persitency, that is, such variable will keep the last defined value for such variable (skipping the declaration).
+Example:
+```
+static int color = WHITE; // value of WHITE and BLACK is defined elsewhere.
+if(color == WHITE) {
+    color = BLACK;
+}
+if(color == BLACK) {
+    color = WHITE;
+}
+```
+This code will switch the `color` variable between `WHITE` and `BLACK` without redefining it to `WHITE` at the declaration.
+
+When `static` is used on a function it means that such function cannot be called by other files.
+Example:
+```
+// On operations.cpp
+...
+
+static int integerMultiply(term1, term2) {
+    if(!isInteger(term1) || !isInteger(term2)) {
+        // error handle
+    }
+    int result;
+    result = term1 * term2;
+    return result;
+}
+```
+
+```
+// On calculator.cpp
+...
+
+if(multiplyMode) {
+    cout << integerMultiply(x1, x2) << endl; // a error will occur.
+}
+```

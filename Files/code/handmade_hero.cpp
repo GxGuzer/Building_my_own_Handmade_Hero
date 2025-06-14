@@ -2,19 +2,29 @@
 #include <iostream>
 using namespace std;
 
-static bool Running;
+static void resizeDIBsection(int width, int height) {
+    HBITMAP CreateDIBSection(HDC hdc, const BITMAPINFO *pbmi, UINT usage, VOID **ppvBits, HANDLE hSection, DWORD offset);
+}
+
+static void updateClientWindow(HDC DeviceContext, int x, int y, int width, int height) {
+  StretchDIBits(DeviceContext, x, y, width, height, x, y, width, height, const VOID *lpBits, const BITMAPINFO *lpbmi, UINT iUsage, DWORD rop);
+}
 
 LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam) {
   LRESULT Result = 0;
   switch (Message)
   {
   case WM_SIZE:
+    RECT ClientRect;
+    GetClientRect(Window, &ClientRect);
+    int ClientRectWidth = ClientRect.right - ClientRect.left;
+    int ClientRectHeight = ClientRect.bottom - ClientRect.top;
+    resizeDIBsection(ClientRectWidth, ClientRectHeight);
     InvalidateRect(Window, NULL, true);
   break;
 
   case WM_DESTROY:
     // TODO: vai ter um handle de erro aqui com recriação de janela?
-    // Running = false;
     PostQuitMessage(0); 
   break;
 
@@ -28,7 +38,17 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
     HDC deviceContext = BeginPaint(Window, &paint);
 
     COLORREF white = RGB(255, 255, 255);
-    COLORREF red = RGB(255, 0, 0);
+    HBRUSH whiteBrush = CreateSolidBrush(white);
+
+    int x = paint.rcPaint.left;
+    int y = paint.rcPaint.top;
+    int width = paint.rcPaint.right - paint.rcPaint.left;
+    int height = paint.rcPaint.bottom - paint.rcPaint.top;
+    updateClientWindow(deviceContext, x, y, width, height);
+
+    FillRect(deviceContext, &paint.rcPaint, whiteBrush);
+    DeleteObject(whiteBrush);
+    /*COLORREF red = RGB(255, 0, 0);
     COLORREF blue = RGB(0, 0, 255);
     COLORREF green = RGB(0, 255, 0);
     COLORREF yellow = RGB(255, 255, 0);
@@ -57,23 +77,23 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
     yellowArea.right = paint.rcPaint.right;
     yellowArea.bottom = paint.rcPaint.bottom;
 
-    HBRUSH whiteBrush = CreateSolidBrush(white);
+    
     HBRUSH redBrush = CreateSolidBrush(red);
     HBRUSH blueBrush = CreateSolidBrush(blue);
     HBRUSH greenBrush = CreateSolidBrush(green);
     HBRUSH yellowBrush = CreateSolidBrush(yellow);
 
-    //FillRect(deviceContext, &paint.rcPaint, whiteBrush);
+    
     FillRect(deviceContext, &redArea, redBrush);
     FillRect(deviceContext, &blueArea, blueBrush);
     FillRect(deviceContext, &greenArea, greenBrush);
     FillRect(deviceContext, &yellowArea, yellowBrush);
 
-    DeleteObject(whiteBrush);
+    
     DeleteObject(redBrush);
     DeleteObject(blueBrush);
     DeleteObject(greenBrush);
-    DeleteObject(yellowBrush);
+    DeleteObject(yellowBrush);*/
 
     EndPaint(Window, &paint);
   }
@@ -93,9 +113,7 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
   return Result;
 }
 
-int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
-  PSTR ComandLine, int ComandShow)
-{
+int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, int ComandShow) {
   /*
   if(AllocConsole()) {
     freopen("CONOUT$", "w", stdout);

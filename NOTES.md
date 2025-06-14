@@ -143,3 +143,18 @@ if(multiplyMode) {
     cout << integerMultiply(x1, x2) << endl; // a error will occur.
 }
 ```
+
+# 06/14/2025
+
+## Rendering method
+
+I gonna use a buffer to hold a bitmap for our graphics.
+
+A buffer is simply a temporary space of memory used to transfer info.
+
+## DIBs
+
+I'm going to use DIB section to talk to Windows about our buffer, and bitmap.
+DIB stands for Device Indepedent Bitmap.
+
+I understood nothing what i've done, whoever today's session is over.

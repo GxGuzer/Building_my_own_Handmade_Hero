@@ -7,7 +7,8 @@ static void resizeDIBsection(int width, int height) {
 }
 
 static void updateClientWindow(HDC DeviceContext, int x, int y, int width, int height) {
-  StretchDIBits(DeviceContext, x, y, width, height, x, y, width, height, const VOID *lpBits, const BITMAPINFO *lpbmi, UINT iUsage, DWORD rop);
+  StretchDIBits(DeviceContext, x, y, width, height, x, y, width, height, const VOID *lpBits, const BITMAPINFO *lpbmi, 
+    UINT iUsage, DWORD rop);
 }
 
 LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam) {
@@ -48,7 +49,8 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
 
     FillRect(deviceContext, &paint.rcPaint, whiteBrush);
     DeleteObject(whiteBrush);
-    /*COLORREF red = RGB(255, 0, 0);
+    /*
+    COLORREF red = RGB(255, 0, 0);
     COLORREF blue = RGB(0, 0, 255);
     COLORREF green = RGB(0, 255, 0);
     COLORREF yellow = RGB(255, 255, 0);
@@ -93,7 +95,8 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
     DeleteObject(redBrush);
     DeleteObject(blueBrush);
     DeleteObject(greenBrush);
-    DeleteObject(yellowBrush);*/
+    DeleteObject(yellowBrush);
+    */
 
     EndPaint(Window, &paint);
   }

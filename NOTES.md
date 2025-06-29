@@ -49,12 +49,12 @@ PlayerStats playerStats;
 
 ### Windows entry point
 
-`WinMain()` WinMain is a WINAPI (Windows API) functions that creates a Windows thread for your program.
+`WinMain()` WinMain is a **WINAPI** (Windows API) functions that creates a Windows thread for your program.
 It receives a Handle instance, command-line arguments as a character string and the flag of the window (maximized, minimized or shown normally)
 
 ### Creating and registering a class
 
-WNDCLASS is a class for a window management it receives a pointer to the window procedure, the handle instance which the class will be managed and the name of the window class.
+**WNDCLASS** is a class for a window management it receives a pointer to the window procedure, the handle instance which the class will be managed and the name of the window class.
 
 `RegisterClass()` is a function that registers the class with the operating system it receives a pointer to the class instead of the class itself.
 
@@ -70,7 +70,7 @@ the functions `TranslateMessage()` and `DispatchMessage()` are contained within 
 `GetMessage()` pulls a message the operating system message queue, if there are none the function blocks (not necessarily meaning froozing the program but it can happen, to avoid it it's good to create other threads).
 `TranslateMessage()` is related to the keyboard, key strokes and etc. how it functions is not important for now.
 `DispatchMessage()` tell the operating system to call the function of window procedure of such particular message.
-All these three function receives a `MSG` struct pointer as a parameter.
+All these three function receives a **MSG** struct pointer as a parameter.
 
 ### Showing the window
 
@@ -80,19 +80,19 @@ All these three function receives a `MSG` struct pointer as a parameter.
 
 ## Painting a window
 
-`COLORREF` is a data type of variable designed to hold color info, it's a 32-bit number where the 24 lower bits describes the RGB info.
-`HBRUSH` is a handle to a brush tool used by Windows GDI (Graphics Device Interface) used to paint polygons.
+**COLORREF** is a data type of variable designed to hold color info, it's a 32-bit number where the 24 lower bits describes the RGB info.
+**HBRUSH** is a handle to a brush tool used by Windows GDI (Graphics Device Interface) used to paint polygons.
 
-We can paint our window with `BeginPaint()` and `EndPaint()` functions, they receive the window handle of the desired window to paint and a pointer to a `PAINTSTRUCT` struct.
+We can paint our window with `BeginPaint()` and `EndPaint()` functions, they receive the window handle of the desired window to paint and a pointer to a **PAINTSTRUCT** struct.
 
-`FillRect()` is a function to paint a rectangular area of our window, it receives a device context variable, a `RECT` struct (the `PAINTSTRUCT` has one) and a `HBRUSH` to be used.
+`FillRect()` is a function to paint a rectangular area of our window, it receives a device context variable, a **RECT** struct (the **PAINTSTRUCT** has one) and a **HBRUSH** to be used.
 
-`PAINTSTRUCT` only marks invalid areas to paint (areas to be painted), the whole window is invalid when it first launches but then only new area by resizing are invalid and will be painted.
+**PAINTSTRUCT** only marks invalid areas to paint (areas to be painted), the whole window is invalid when it first launches but then only new area by resizing are invalid and will be painted.
 
-To repaint previously painted area we need to invalidate them, we can use `InvalidateRect()` function to do that, it receives the window handle, a pointer to a `RECT` structure to mark the area to be invalidated (if `NULL` the whole window will be marked) and a boolean to set if the area must be erased (true) or not (false).
+To repaint previously painted area we need to invalidate them, we can use `InvalidateRect()` function to do that, it receives the window handle, a pointer to a **RECT** structure to mark the area to be invalidated (if **NULL** the whole window will be marked) and a boolean to set if the area must be erased (true) or not (false).
 *//I've seen no difference with the `FillRect()` maybe it happen on more complex paintings.*
 
-We can also revalidate an area with `ValidateRect()` function (this means, mark a rectangular area that should not be redrawn), it receives a window handle and a pointer to a `RECT` struct.
+We can also revalidate an area with `ValidateRect()` function (this means, mark a rectangular area that should not be redrawn), it receives a window handle and a pointer to a **RECT** struct.
 
 # 06/07/2025
 
@@ -158,3 +158,40 @@ I'm going to use DIB section to talk to Windows about our buffer, and bitmap.
 DIB stands for Device Indepedent Bitmap.
 
 I understood nothing what i've done, whoever today's session is over.
+
+# 06/29/2025
+
+## Rendering method
+
+We're gonna use a backbuffer for pixels, and then allocate it to the graphics card to draw.
+
+## Closing window process
+
+`WM_CLOSE` is a message sent when the users attempts to close the window, if this message isn't handled Windows will just proceed to close the window, this message is a opportunity to the program intervene and ask for a confirmation or/and send a warning about losing progress.
+
+`WM_DESTROY` is a message sent when the window has been closed on screen but still exists on the system, this happens after a `WM_CLOSE` message, at this stage the program has the chance to process unsaved info, saving or deleting them, and apply the last changes and checks to whatever it's handling. This message is sent to the window being destroyed and then to the child windows if there are any.
+
+At this stage a `PostQuitMessage()`function should be called for the proper termination of the program.
+
+`WM_QUIT` is the message which indicates to Windows that the program must be terminated, it is usually sented as a response for the `WM_DESTROY` message, but `PostQuitMessage()` can be called at any place by design.
+
+## Device-Independent Bitmaps
+
+Device-Independent Bitmaps (DIBs) are Bitmaps that can be easily stored and loaded across different devices.
+
+It stores an array of color in red, green and blue (RGB) triplets of pixels of the image.
+It also contains more info about its source such like, the color format of the device which created it, the palette of the device which created it and the resolution of the device which created it.
+
+## Getting application area and building a buffer
+
+### Rendering procedure summary
+
+We're gonna to create a buffer, store whatever image we want to draw in that buffer, then we're going to resize it to fit the window and paint the window with that buffer when necessary.
+
+We will also force a paint in order to do animation because usually windows only repaints when a part of the window gets offscreen or is occupied by another window. (probably with `InvalidateRect()` function which i already used).
+
+### Getting client area
+
+`GetClientRect()` is the function which retrieves the coordinates about a window's client area, this area is the area which can be drawn it is not the border, menus or buttons of a window, these parts are handled by Windows.
+
+It receives the handle for the target windows and a pointer to a **RECT** structure which the coordinates will be stored, the coordinates are the upper-left corner and the bottom-right corner right outside the area. (it seems that the upper-left corner is always 0,0).

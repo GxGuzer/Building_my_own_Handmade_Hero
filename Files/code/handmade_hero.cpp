@@ -2,13 +2,30 @@
 #include <iostream>
 using namespace std;
 
+static BITMAPINFO bitmapInfo;
+static void *bitmapMemory;
+static HBITMAP bitmapHandle;
+
 static void resizeDIBsection(int width, int height) {
-    HBITMAP CreateDIBSection(HDC hdc, const BITMAPINFO *pbmi, UINT usage, VOID **ppvBits, HANDLE hSection, DWORD offset);
+  // Test free after, free first if that fails.
+  if(bitmapHandle) {
+    DeleteObject(bitmapHandle);
+  }
+  
+  bitmapInfo.bmiHeader.biSize = sizeof(bitmapInfo.bmiHeader);
+  bitmapInfo.bmiHeader.biWidth = width;
+  bitmapInfo.bmiHeader.biHeight = height;
+  bitmapInfo.bmiHeader.biPlanes = 1;
+  bitmapInfo.bmiHeader.biBitCount = 32;
+  bitmapInfo.bmiHeader.biCompression = BI_RGB;
+  
+  bitmapHandle = CreateDIBSection(DeviceContext, &bitmapInfo, DIB_RGB_COLORS, &bitmapMemory, 
+    NULL, NULL);
 }
 
 static void updateClientWindow(HDC DeviceContext, int x, int y, int width, int height) {
-  StretchDIBits(DeviceContext, x, y, width, height, x, y, width, height, const VOID *lpBits, const BITMAPINFO *lpbmi, 
-    UINT iUsage, DWORD rop);
+  StretchDIBits(DeviceContext, x, y, width, height, x, y, width, height, const VOID *lpBits, 
+    const BITMAPINFO *lpbmi, DIB_RGB_COLORS, SRCCOPY);
 }
 
 LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam) {

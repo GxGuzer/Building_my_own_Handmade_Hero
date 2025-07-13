@@ -195,3 +195,23 @@ We will also force a paint in order to do animation because usually windows only
 `GetClientRect()` is the function which retrieves the coordinates about a window's client area, this area is the area which can be drawn it is not the border, menus or buttons of a window, these parts are handled by Windows.
 
 It receives the handle for the target windows and a pointer to a **RECT** structure which the coordinates will be stored, the coordinates are the upper-left corner and the bottom-right corner right outside the area. (it seems that the upper-left corner is always 0,0).
+
+# 07/13/2025
+
+## Raster operation code
+
+It's the type of bit-wise operations it's done at the destination buffer.
+
+Essentially it says what to do with the color data of the source at the destination using a specified pattern (brush). For example: an inverted colored image, or green filtered image, etc.
+
+## BITMAPINFO
+
+**BITMAPINFO** is a structure which defines the dimension and scale of a DIB.
+
+### BITMAPINFOHEADER
+
+**BITMAPINFOHEADER** Is a structure which holds information about the DIB, such as size, dimensions, color table, compression and etc.
+
+## Bitmap deletion
+
+It seems that Windows will accumulate memory when recreating bitmap handles so we need to free this space of memory ourselves.

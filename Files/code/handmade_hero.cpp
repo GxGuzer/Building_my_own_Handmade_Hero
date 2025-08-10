@@ -5,11 +5,17 @@ using namespace std;
 static BITMAPINFO bitmapInfo;
 static void *bitmapMemory;
 static HBITMAP bitmapHandle;
+static HDC bitmapDeviceContext;
 
 static void resizeDIBsection(int width, int height) {
+
   // Test free after, free first if that fails.
+
   if(bitmapHandle) {
     DeleteObject(bitmapHandle);
+  }
+  if(!bitmapDeviceContext) {
+    bitmapDeviceContext = CreateCompatibleDC(0);
   }
   
   bitmapInfo.bmiHeader.biSize = sizeof(bitmapInfo.bmiHeader);
@@ -18,8 +24,8 @@ static void resizeDIBsection(int width, int height) {
   bitmapInfo.bmiHeader.biPlanes = 1;
   bitmapInfo.bmiHeader.biBitCount = 32;
   bitmapInfo.bmiHeader.biCompression = BI_RGB;
-  
-  bitmapHandle = CreateDIBSection(DeviceContext, &bitmapInfo, DIB_RGB_COLORS, &bitmapMemory, 
+
+  bitmapHandle = CreateDIBSection(bitmapDeviceContext, &bitmapInfo, DIB_RGB_COLORS, &bitmapMemory, 
     NULL, NULL);
 }
 
@@ -32,22 +38,28 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
   LRESULT Result = 0;
   switch (Message)
   {
-  case WM_SIZE:
+  case WM_SIZE: 
+  {
     RECT ClientRect;
     GetClientRect(Window, &ClientRect);
     int ClientRectWidth = ClientRect.right - ClientRect.left;
     int ClientRectHeight = ClientRect.bottom - ClientRect.top;
     resizeDIBsection(ClientRectWidth, ClientRectHeight);
     InvalidateRect(Window, NULL, true);
+  }
   break;
 
   case WM_DESTROY:
+  {
     // TODO: vai ter um handle de erro aqui com recriação de janela?
     PostQuitMessage(0); 
+  }
   break;
 
   case WM_ACTIVATEAPP:
+  {
     cout << "Active/Deactive" << endl;
+  }
   break;
   
   case WM_PAINT:
@@ -120,14 +132,18 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
   break;
 
   case WM_CLOSE:
+  {
     if(MessageBox(Window, "Get Out?", "Close the game?", MB_OKCANCEL) == IDOK) {
       DestroyWindow(Window);
     }
     cout << "Close" << endl;
+  }
   break;
 
   default:
+  {
     Result = DefWindowProc(Window, Message, WParam, LParam);
+  }
   break;
   }
   return Result;

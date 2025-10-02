@@ -1,4 +1,4 @@
-# 04/15/2025
+# 15/04/2025
 
 I had a hard time trying to understand things together, searching sollutions on internet and stuff, but i realized what's wrong.
 I'm using **Visual Studio Code** while Casey and most of users i found are using **Visual Studio**.
@@ -7,7 +7,7 @@ My biggest strugle was how to set up stuff. In VS (Visual Studio) you have your 
 
 i'm using VSC to just write the code, i compile it and run it on the terminal, i don't know how to debug on terminal.
 
-# 04/22/2025
+# 22/04/2025
 
 `typedef` is a way to making a *"new"* type of data to be called be its new name, mostly used in old C programs, for example:
 
@@ -43,13 +43,13 @@ typedef struct playerStats { //the name of the struct is now actually irrelevant
 PlayerStats playerStats;
 ```
 
-# 05/08/2025
+# 08/05/2025
 
 ## Summary on creating a window
 
 ### Windows entry point
 
-`WinMain()` WinMain is a **WINAPI** (Windows API) functions that creates a Windows thread for your program.
+`WinMain()` is a **WINAPI** (Windows API) function that creates a Windows thread for your program.
 It receives a Handle instance, command-line arguments as a character string and the flag of the window (maximized, minimized or shown normally)
 
 ### Creating and registering a class
@@ -67,7 +67,7 @@ a window can send a lot of messages about its status, in `LRESULT CALLBACK Windo
 ### Translating and Dispatching messages 
 
 the functions `TranslateMessage()` and `DispatchMessage()` are contained within a loop while `GetMessage()` does return zero.
-`GetMessage()` pulls a message the operating system message queue, if there are none the function blocks (not necessarily meaning froozing the program but it can happen, to avoid it it's good to create other threads).
+`GetMessage()` pulls a message from the operating system message queue, if there are none the function blocks (not necessarily meaning freezing the program but it can happen, to avoid it it's good to create other threads).
 `TranslateMessage()` is related to the keyboard, key strokes and etc. how it functions is not important for now.
 `DispatchMessage()` tell the operating system to call the function of window procedure of such particular message.
 All these three function receives a **MSG** struct pointer as a parameter.
@@ -76,7 +76,7 @@ All these three function receives a **MSG** struct pointer as a parameter.
 
 `ShowWindow()` is a function that shows the window on screen, that's simple, it receives the window handle and a value that tells how the window should be shown.
 
-# 05/15/2025
+# 15/05/2025
 
 ## Painting a window
 
@@ -94,7 +94,7 @@ To repaint previously painted area we need to invalidate them, we can use `Inval
 
 We can also revalidate an area with `ValidateRect()` function (this means, mark a rectangular area that should not be redrawn), it receives a window handle and a pointer to a **RECT** struct.
 
-# 06/07/2025
+# 07/06/2025
 
 ## Resource Handling tips
 
@@ -144,7 +144,7 @@ if(multiplyMode) {
 }
 ```
 
-# 06/14/2025
+# 14/06/2025
 
 ## Rendering method
 
@@ -159,7 +159,7 @@ DIB stands for Device Indepedent Bitmap.
 
 I understood nothing what i've done, whoever today's session is over.
 
-# 06/29/2025
+# 29/06/2025
 
 ## Rendering method
 
@@ -188,19 +188,19 @@ It also contains more info about its source such like, the color format of the d
 
 We're gonna to create a buffer, store whatever image we want to draw in that buffer, then we're going to resize it to fit the window and paint the window with that buffer when necessary.
 
-We will also force a paint in order to do animation because usually windows only repaints when a part of the window gets offscreen or is occupied by another window. (probably with `InvalidateRect()` function which i already used).
+We will also force a paint in order to do animation because usually Windows only repaints when a part of the window gets offscreen or is occupied by another window. (probably with `InvalidateRect()` function which i already used).
 
 ### Getting client area
 
 `GetClientRect()` is the function which retrieves the coordinates about a window's client area, this area is the area which can be drawn it is not the border, menus or buttons of a window, these parts are handled by Windows.
 
-It receives the handle for the target windows and a pointer to a **RECT** structure which the coordinates will be stored, the coordinates are the upper-left corner and the bottom-right corner right outside the area. (it seems that the upper-left corner is always 0,0).
+It receives the handle for the target window and a pointer to a **RECT** structure which the coordinates will be stored, the coordinates are the upper-left corner and the bottom-right corner right outside the area. (it seems that the upper-left corner is always 0,0).
 
-# 07/13/2025
+# 13/07/2025
 
 ## Raster operation code
 
-It's the type of bit-wise operations it's done at the destination buffer.
+It's the type of bit-wise operations that is done at the destination buffer.
 
 Essentially it says what to do with the color data of the source at the destination using a specified pattern (brush). For example: an inverted colored image, or green filtered image, etc.
 
@@ -215,3 +215,34 @@ Essentially it says what to do with the color data of the source at the destinat
 ## Bitmap deletion
 
 It seems that Windows will accumulate memory when recreating bitmap handles so we need to free this space of memory ourselves.
+
+# 18/09/2025
+
+## StretchDIBits/BitBlt confusion
+
+Casey always used `BitBlt()` to render on screen, it needs a source Device Context (DC) to keep the target bitmap send it to a destination DC that would be the Windows display buffer.
+
+But the function `StretchDIBist()` can perform a bitmap transference without the DC conversion, using DIBs.
+
+`BitBlt()` used to be faster than `StretchDIBits()` but nowadays both functions make no relevant difference.
+
+## Soliciting memory with a padding
+
+In x86 architecture there's some kind of penalty of unaligned memory bits.
+
+Memory alignment is about using the spacing of bits for different information, being on a base-2 size variable (8 bits, 16 bits, 32 bits and 64 bits.)
+
+For example a RGB pixel could have one byte (8 bits) for each color channel:
+```
+  Red     Green     Blue
+|------| |------| |-------|
+00000000 00000000 000000000
+```
+As you can see, this variable uses 24 bits, which is bigger than a 16 bit variable, so it needs a padding to fill a next size variable, in the end it being:
+```
+  Red     Green     Blue   Padding
+|------| |------| |------| |------|
+00000000 00000000 00000000 00000000
+```
+
+Alignment is about ending a variable with a base-2 byte size.

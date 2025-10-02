@@ -2,22 +2,15 @@
 #include <iostream>
 using namespace std;
 
+// Bitmap variables and functions.
 static BITMAPINFO bitmapInfo;
 static void *bitmapMemory;
-static HBITMAP bitmapHandle;
-static HDC bitmapDeviceContext;
 
+// Bitmap creation and manipulation.
 static void resizeDIBsection(int width, int height) {
 
   // Test free after, free first if that fails.
 
-  if(bitmapHandle) {
-    DeleteObject(bitmapHandle);
-  }
-  if(!bitmapDeviceContext) {
-    bitmapDeviceContext = CreateCompatibleDC(0);
-  }
-  
   bitmapInfo.bmiHeader.biSize = sizeof(bitmapInfo.bmiHeader);
   bitmapInfo.bmiHeader.biWidth = width;
   bitmapInfo.bmiHeader.biHeight = height;
@@ -25,8 +18,10 @@ static void resizeDIBsection(int width, int height) {
   bitmapInfo.bmiHeader.biBitCount = 32;
   bitmapInfo.bmiHeader.biCompression = BI_RGB;
 
-  bitmapHandle = CreateDIBSection(bitmapDeviceContext, &bitmapInfo, DIB_RGB_COLORS, &bitmapMemory, 
-    NULL, NULL);
+  // Memory sizing considering a padding for memory alignment.
+  int bytePerPixel = 4;
+  int bitmapMemorySize = (width*height)*bytePerPixel;
+  bitmapMemory = (bitmapMemorySize);
 }
 
 static void updateClientWindow(HDC DeviceContext, int x, int y, int width, int height) {
@@ -34,6 +29,7 @@ static void updateClientWindow(HDC DeviceContext, int x, int y, int width, int h
     const BITMAPINFO *lpbmi, DIB_RGB_COLORS, SRCCOPY);
 }
 
+// Window procedure to messages.
 LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam) {
   LRESULT Result = 0;
   switch (Message)
@@ -51,7 +47,7 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
 
   case WM_DESTROY:
   {
-    // TODO: vai ter um handle de erro aqui com recriação de janela?
+    // TODO: error handle with window recreation?
     PostQuitMessage(0); 
   }
   break;
@@ -158,6 +154,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
   }
   */
 
+  // Class and window creation.
   WNDCLASS WindowClass = {};
   WindowClass.lpfnWndProc = WindowProc;
   WindowClass.hInstance = Instance;
@@ -177,6 +174,8 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
     return 0;
   }
 
+
+  // Show window and get messages.
   ShowWindow(HandmadeHeroWindow, ComandShow);
   
   MSG message = {};

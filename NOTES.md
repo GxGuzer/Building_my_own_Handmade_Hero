@@ -222,7 +222,7 @@ It seems that Windows will accumulate memory when recreating bitmap handles so w
 
 Casey always used `BitBlt()` to render on screen, it needs a source Device Context (DC) to keep the target bitmap send it to a destination DC that would be the Windows display buffer.
 
-But the function `StretchDIBist()` can perform a bitmap transference without the DC conversion, using DIBs.
+But the function `StretchDIBits()` can perform a bitmap transference without the DC conversion, using DIBs.
 
 `BitBlt()` used to be faster than `StretchDIBits()` but nowadays both functions make no relevant difference.
 
@@ -246,3 +246,30 @@ As you can see, this variable uses 24 bits, which is bigger than a 16 bit variab
 ```
 
 Alignment is about ending a variable with a base-2 byte size.
+
+# 04/10/2025
+
+## Requesting memory with VirtualAlloc()
+
+`VirtualAlloc()` is a function which allows you to request memory and windows will deliver you entire pages of a memory.
+If you request memory smaller than a page size Windows still delivers one entire page and the remaining memory will just be wasted if your program doesn't use it.
+
+It reserves, commits or changes the state of a range of pages based on the parameters:
+`lpAddress`: The starting address of the desired request, if the address is being reserved or commited this value will be rounded to the next address available or to the next page boundary respectfully.
+`dwSize`: The size of the region being requested if `lpAddress`is **NULL** then the size will be rounded to the next page boundary, otherwise it will include all pages within range and if it pass one byte of the next page it will contain that entire page aswell.
+`flAllocationType`: It's the type of allocation (reserve, commit, reset, etc.) it must contain one valid value listed in [Microsoft's memoryapi.h documentation](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc)
+`flProtect`: is the type of memory protection (if it can be read, write or executed by other programs).
+
+## Releasing memory with VirtualFree()
+
+`VirtualFree()` is a function that can decommit and release memory pages.
+It has three parameters:
+`lpAddress`: It's the address of the base of the region to be release or decommited.
+`dwSize`: It's the size of the region to be freed, if the region is going to be full release (not reserved anymore) it must be the entire region delivered by `VirtualAlloc()` (in this case the parameter must be 0), if the region is going to be decommited (addresses still reserved) then this parameter should specify the size to be decommited, just like allocating the size will be rounded to catch entire pages.
+`dwFreeType`: Defines the free operation the function executes, a full release (`MEM_RELEASE`) or a decommit (`MEM_DECOMMIT`).
+
+## "use after free" bug prevention
+
+`VirtualProtect()` is a function that changes the protection type of a commited memory region.
+
+It is suggested, on debugging, to change the protection of a memory region to `PAGE_NOACCESS` instead of freeing it in order to catch pointers that would aim for a freed memory, therefore preventing "use after free" bugs and stale reads. 

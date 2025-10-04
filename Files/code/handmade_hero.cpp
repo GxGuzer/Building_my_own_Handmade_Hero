@@ -10,6 +10,9 @@ static void *bitmapMemory;
 static void resizeDIBsection(int width, int height) {
 
   // Test free after, free first if that fails.
+  if(bitmapMemory) {
+    VirtualFree(bitmapMemory, NULL, MEM_RELEASE);
+  }
 
   bitmapInfo.bmiHeader.biSize = sizeof(bitmapInfo.bmiHeader);
   bitmapInfo.bmiHeader.biWidth = width;
@@ -21,12 +24,13 @@ static void resizeDIBsection(int width, int height) {
   // Memory sizing considering a padding for memory alignment.
   int bytePerPixel = 4;
   int bitmapMemorySize = (width*height)*bytePerPixel;
-  bitmapMemory = (bitmapMemorySize);
+  bitmapMemory = VirtualAlloc(NULL, bitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+  // Memory allocated and pointer stored.
 }
 
 static void updateClientWindow(HDC DeviceContext, int x, int y, int width, int height) {
-  StretchDIBits(DeviceContext, x, y, width, height, x, y, width, height, const VOID *lpBits, 
-    const BITMAPINFO *lpbmi, DIB_RGB_COLORS, SRCCOPY);
+  StretchDIBits(DeviceContext, x, y, width, height, x, y, width, height, bitmapMemory, 
+    &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
 }
 
 // Window procedure to messages.

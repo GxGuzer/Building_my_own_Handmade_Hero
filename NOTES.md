@@ -273,3 +273,24 @@ It has three parameters:
 `VirtualProtect()` is a function that changes the protection type of a commited memory region.
 
 It is suggested, on debugging, to change the protection of a memory region to `PAGE_NOACCESS` instead of freeing it in order to catch pointers that would aim for a freed memory, therefore preventing "use after free" bugs and stale reads. 
+
+# 17/10/2025
+
+## Stride
+
+Stride is how a 2D or 3D image is read through a 1D buffer (memory addresses) and identifying this method is essential for drawing the image on the right way.
+
+`StrecthDIBits()` use the sign of the height to determine the direction Y (bottom-up or top-down), if positive it's a bottom-up, if negative it's a top-down.
+
+# 18/10/2025
+
+## Conclusion on BGR
+
+Regarding [file] so it happens that Windows is a little endian architecture, so the memory withdrawal is swapped, but to make RGB doesn't look BGR, the *designers* inverted the procedure.
+so when you look into memory you'll see the RGB pattern, but when the system pulls the bytes they pull the Blue byte first, so on our code, the values must be inverted.
+
+# 13/11/2025
+
+## PeekMessage
+
+`PeekMessage()` is a function that handle messages without letting us stuck with 'em, the downside is it gets out of loop (returns zero) when there are no messages.

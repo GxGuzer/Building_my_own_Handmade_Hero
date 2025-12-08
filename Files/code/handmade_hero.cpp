@@ -25,32 +25,34 @@ void renderGrad(int xOffset, int yOffset) {
   int pitch = width*bytePerPixel;
   uchar *row = (uchar *)bitmapMemory;
   for (int Y = 0; Y < bitmapHeight; Y++) {
-    uchar *pixel = (uchar *)row;
+    uint *pixel = (uint *)row;
     for (int X = 0; X < bitmapWidth; X++) {
       /*
       Logic for pixels on memory:
       00 00 00 00
       RR GG BB xx
 
-      Based on this RGB estimative the code follows.
+      Based on this RGB estimative the code follows:
+      - FF 00 00 00 Whole screen should be red ended being blue.
+      - 00 FF 00 00 Whole screen should be green ended as expected.
+      - 00 00 FF 00 Whole screen should be blue ended being red.
+      - 00 00 00 FF Nothing special is expected.
+      Conclusion: RGB scheme is actually BGR.
       */
-      *pixel = (uchar)(X + xOffset);
+
+      uchar Blue = (X + xOffset);
+      uchar Green = (Y + yOffset);
+
+      *pixel = ((Green << 8) | Blue);
       pixel++;
 
-      *pixel = (uchar)(Y + yOffset);
-      pixel++;
+      /*
+      Little endian on pixel explained:
+      Little endian makes the bigger significants values the last, so when working with 8 bits we have to make the buffer pull the variables accordingly.
+      
+      With 32 bits since it's one variable, everything we have to do is to make the channel values fall into their respectives pads, we do that through bitshifts, but considering that on registers the bits are already on the RGB pattern instead of the BGR.
+      */
 
-      *pixel = 0;
-      pixel++;
-
-      *pixel = 0;
-      pixel++;
-
-      // FF 00 00 00 Whole screen should be red ended being blue.
-      // 00 FF 00 00 Whole screen should be green ended as expected.
-      // 00 00 FF 00 Whole screen should be blue ended being red.
-      // 00 00 00 FF Nothing special is expected.
-      // Conclusion: RGB scheme is actually BGR.
     }
     row += pitch;
   }  
@@ -134,55 +136,6 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
     RECT ClientRect;
     GetClientRect(Window, &ClientRect);
     updateClientWindow(deviceContext, &ClientRect, x, y, width, height);
-
-    /*
-    COLORREF red = RGB(255, 0, 0);
-    COLORREF blue = RGB(0, 0, 255);
-    COLORREF green = RGB(0, 255, 0);
-    COLORREF yellow = RGB(255, 255, 0);
-
-    RECT redArea;
-    redArea.left = paint.rcPaint.left;
-    redArea.top = paint.rcPaint.top;
-    redArea.right = paint.rcPaint.right/2;
-    redArea.bottom = paint.rcPaint.bottom/2;
-
-    RECT blueArea;
-    blueArea.left = paint.rcPaint.left+(paint.rcPaint.right/2);
-    blueArea.top = paint.rcPaint.top;
-    blueArea.right = paint.rcPaint.right;
-    blueArea.bottom = paint.rcPaint.bottom/2;
-
-    RECT greenArea;
-    greenArea.left = paint.rcPaint.left;
-    greenArea.top = paint.rcPaint.top+(paint.rcPaint.bottom/2);
-    greenArea.right = paint.rcPaint.right/2;
-    greenArea.bottom = paint.rcPaint.bottom;
-
-    RECT yellowArea;
-    yellowArea.left = paint.rcPaint.left+(paint.rcPaint.right/2);
-    yellowArea.top = paint.rcPaint.top+(paint.rcPaint.bottom/2);
-    yellowArea.right = paint.rcPaint.right;
-    yellowArea.bottom = paint.rcPaint.bottom;
-
-    
-    HBRUSH redBrush = CreateSolidBrush(red);
-    HBRUSH blueBrush = CreateSolidBrush(blue);
-    HBRUSH greenBrush = CreateSolidBrush(green);
-    HBRUSH yellowBrush = CreateSolidBrush(yellow);
-
-    
-    FillRect(deviceContext, &redArea, redBrush);
-    FillRect(deviceContext, &blueArea, blueBrush);
-    FillRect(deviceContext, &greenArea, greenBrush);
-    FillRect(deviceContext, &yellowArea, yellowBrush);
-
-    
-    DeleteObject(redBrush);
-    DeleteObject(blueBrush);
-    DeleteObject(greenBrush);
-    DeleteObject(yellowBrush);
-    */
 
     EndPaint(Window, &paint);
   }

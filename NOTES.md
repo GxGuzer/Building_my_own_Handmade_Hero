@@ -294,3 +294,40 @@ so when you look into memory you'll see the RGB pattern, but when the system pul
 ## PeekMessage
 
 `PeekMessage()` is a function that handle messages without letting us stuck with 'em, the downside is it gets out of loop (returns zero) when there are no messages.
+
+# 11/12/2025
+
+## Aliasing
+
+Aliasing is when two pointers could point to the same thing and the compiler doesn't know about it, forcing it to go for memory twice or more without necessity.
+```
+char *A = smwhereInMemory;
+char *B = smwhereInMemory;
+
+int x = *A;
+*B = 5;
+int y = *A;
+```
+Compiler could set `y = x`, considering both are declared with the same pointer,
+but the pointer could be altered before reaching to that code, let's say `A = B` then `y` would be different than `x`.
+
+If `y = x` is desired then the pointer should not be used on `y`'s declaration.
+
+## Stack memory
+
+The stack memory is a region of memory designed to be used on runtime to store local variables of functions.
+
+Whenever a function is called its local variables are stored onto stack and when it's returned these variables are thrown out and that space will be used by other function if there are one.
+
+The location of a variable doesn't change major behaviors, only attention is required when refering variables because local variables cannot be referred to outside their region.
+
+### Classes constructors
+
+With classes this behavior is different since classes can have **constructors** and **destructors**.
+
+**Constructor** is essentially a function that is called whenever a object is created.
+
+**Destructors** is essentially a function that is called whenever a object cease existence.
+
+Locality in this case matters because whenever you put a declaration of a class, it will call those functions and if you don't want those functions to be called at a certain region you shall not put a object there.
+Constructors are called as soon on declaration and Destructors are called as soon as it's get out of scope or is destroyed by code.

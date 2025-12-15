@@ -9,84 +9,84 @@ typedef unsigned long ulong;
 typedef long long llong;
 typedef unsigned long long ullong;
 
-bool running = false;
+bool Running = false;
 
 // Bitmap variables and functions.
-static BITMAPINFO bitmapInfo;
-static void *bitmapMemory;
-static int bitmapWidth; // Temporarily global
-static int bitmapHeight; // Temporarily global
-int bytePerPixel = 4;
+struct BitmapBuffer {
+  BITMAPINFO Info;
+  void *Memory;
+  int Width;
+  int Height;
+  int BytePerPixel;
+  int Pitch;
+};
 
-void renderGrad(int xOffset, int yOffset) {
-  int width = bitmapWidth;
-  int height = bitmapHeight;
+static BitmapBuffer GlobalBackbuffer;
 
-  int pitch = width*bytePerPixel;
-  uchar *row = (uchar *)bitmapMemory;
-  for (int Y = 0; Y < bitmapHeight; Y++) {
-    uint *pixel = (uint *)row;
-    for (int X = 0; X < bitmapWidth; X++) {
-      /*
-      Logic for pixels on memory:
-      00 00 00 00
-      RR GG BB xx
+struct ClientWindowDimension {
+  int Width;
+  int Height;
+};
 
-      Based on this RGB estimative the code follows:
-      - FF 00 00 00 Whole screen should be red ended being blue.
-      - 00 FF 00 00 Whole screen should be green ended as expected.
-      - 00 00 FF 00 Whole screen should be blue ended being red.
-      - 00 00 00 FF Nothing special is expected.
-      Conclusion: RGB scheme is actually BGR.
-      */
+ClientWindowDimension GetClientWindowDimension(HWND WindowHandle) {
+  ClientWindowDimension Result;
 
-      uchar Blue = (X + xOffset);
-      uchar Green = (Y + yOffset);
+  RECT ClientRect;
+  GetClientRect(WindowHandle, &ClientRect);
+  Result.Width = ClientRect.right - ClientRect.left;
+  Result.Height = ClientRect.bottom - ClientRect.top;
 
-      *pixel = ((Green << 8) | Blue);
-      pixel++;
+  return Result;
+}
 
-      /*
-      Little endian on pixel explained:
-      Little endian makes the bigger significants values the last, so when working with 8 bits we have to make the buffer pull the variables accordingly.
+void RenderGrad(BitmapBuffer Buffer, int XOffset, int YOffset) {
+
+  uchar *Row = (uchar *)Buffer.Memory;
+  for (int Y = 0; Y < Buffer.Height; Y++) {
+    uint *Pixel = (uint *)Row;
+    for (int X = 0; X < Buffer.Width; X++) {
       
-      With 32 bits since it's one variable, everything we have to do is to make the channel values fall into their respectives pads, we do that through bitshifts, but considering that on registers the bits are already on the RGB pattern instead of the BGR.
-      */
+      uchar Blue = (X + XOffset);
+      uchar Green = (Y + YOffset);
+
+      *Pixel = ((Green << 8) | Blue);
+      Pixel++;
 
     }
-    row += pitch;
+    Row += Buffer.Pitch;
   }  
 }
 
 // Bitmap creation and manipulation.
-static void resizeDIBsection(int width, int height) {
+static void ResizeDIBSection(BitmapBuffer *Buffer, int Width, int Height) {
 
-  if(bitmapMemory) {
-    VirtualFree(bitmapMemory, NULL, MEM_RELEASE);
+  if(Buffer->Memory) {
+    VirtualFree(Buffer->Memory, NULL, MEM_RELEASE);
   }
 
-  bitmapWidth = width;
-  bitmapHeight = height;
+  Buffer->Width = Width;
+  Buffer->Height = Height;
+  Buffer->BytePerPixel = 4;
 
-  bitmapInfo.bmiHeader.biSize = sizeof(bitmapInfo.bmiHeader);
-  bitmapInfo.bmiHeader.biWidth = bitmapWidth;
-  bitmapInfo.bmiHeader.biHeight = -bitmapHeight;
-  bitmapInfo.bmiHeader.biPlanes = 1;
-  bitmapInfo.bmiHeader.biBitCount = 32;
-  bitmapInfo.bmiHeader.biCompression = BI_RGB;
+  Buffer->Info.bmiHeader.biSize = sizeof(Buffer->Info.bmiHeader);
+  Buffer->Info.bmiHeader.biWidth = Buffer->Width;
+  Buffer->Info.bmiHeader.biHeight = -Buffer->Height;
+  Buffer->Info.bmiHeader.biPlanes = 1;
+  Buffer->Info.bmiHeader.biBitCount = 32;
+  Buffer->Info.bmiHeader.biCompression = BI_RGB;
+
+  Buffer->Pitch = Width*Buffer->BytePerPixel;
 
   // Memory sizing considering a padding for memory alignment.
-  int bitmapMemorySize = (bitmapWidth*bitmapHeight)*bytePerPixel;
-  bitmapMemory = VirtualAlloc(NULL, bitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+  int BitmapMemorySize = (Buffer->Width*Buffer->Height)*Buffer->BytePerPixel;
+  Buffer->Memory = VirtualAlloc(NULL, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
   // Memory allocated and pointer stored.
 
   // This function have a chance to be cleared.
 }
 
-static void updateClientWindow(HDC DeviceContext, RECT *WindowRect, int x, int y, int width, int height) {
-  int windowWidth = WindowRect->right - WindowRect->left;
-  int windowHeight = WindowRect->bottom - WindowRect->top;
-  StretchDIBits(DeviceContext, /*x, y, width, height, x, y, width, height*/ 0, 0, bitmapWidth, bitmapHeight, 0, 0, windowWidth, windowHeight, bitmapMemory, &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
+static void DisplayBuffer(HDC DeviceContext, int WindowWidth, int WindowHeight, BitmapBuffer Buffer, int X, int Y, int Width, int Height) {
+  StretchDIBits(DeviceContext, 0, 0, WindowWidth, WindowHeight, 0, 0, Buffer.Width, Buffer.Height, Buffer.Memory, &Buffer.Info, DIB_RGB_COLORS, SRCCOPY);
 }
 
 // Window procedure to messages.
@@ -96,18 +96,13 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
   {
   case WM_SIZE: 
   {
-    RECT ClientRect;
-    GetClientRect(Window, &ClientRect);
-    int ClientRectWidth = ClientRect.right - ClientRect.left;
-    int ClientRectHeight = ClientRect.bottom - ClientRect.top;
-    resizeDIBsection(ClientRectWidth, ClientRectHeight);
     InvalidateRect(Window, NULL, true);
   }
   break;
 
   case WM_DESTROY:
   {
-    // TODO: error handle with window recreation?
+    // TODO: Error handle with window recreation?
     PostQuitMessage(0); 
   }
   break;
@@ -120,24 +115,23 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
   
   case WM_PAINT:
   {
-    PAINTSTRUCT paint;
-    HDC deviceContext = BeginPaint(Window, &paint);
+    PAINTSTRUCT Paint;
+    HDC DeviceContext = BeginPaint(Window, &Paint);
 
-    int x = paint.rcPaint.left;
-    int y = paint.rcPaint.top;
-    int width = paint.rcPaint.right - paint.rcPaint.left;
-    int height = paint.rcPaint.bottom - paint.rcPaint.top;
+    int X = Paint.rcPaint.left;
+    int Y = Paint.rcPaint.top;
+    int Width = Paint.rcPaint.right - Paint.rcPaint.left;
+    int Height = Paint.rcPaint.bottom - Paint.rcPaint.top;
 
-    COLORREF white = RGB(255, 255, 255);
-    HBRUSH whiteBrush = CreateSolidBrush(white);
-    FillRect(deviceContext, &paint.rcPaint, whiteBrush);
-    DeleteObject(whiteBrush);
+    COLORREF White = RGB(255, 255, 255);
+    HBRUSH WhiteBrush = CreateSolidBrush(White);
+    FillRect(DeviceContext, &Paint.rcPaint, WhiteBrush);
+    DeleteObject(WhiteBrush);
 
-    RECT ClientRect;
-    GetClientRect(Window, &ClientRect);
-    updateClientWindow(deviceContext, &ClientRect, x, y, width, height);
+    ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(Window);
+    DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer, X, Y, Width, Height);
 
-    EndPaint(Window, &paint);
+    EndPaint(Window, &Paint);
   }
   break;
 
@@ -163,57 +157,56 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
   
   // Class and window creation.
   WNDCLASS WindowClass = {};
+  WindowClass.style = CS_HREDRAW|CS_VREDRAW;
   WindowClass.lpfnWndProc = WindowProc;
   WindowClass.hInstance = Instance;
   WindowClass.lpszClassName = "HandmadeHeroWindowClass";
   
   if(!RegisterClass(&WindowClass)) {
-    DWORD error = GetLastError();
-    cout << "Register failed with: " << error << endl;
+    DWORD Error = GetLastError();
+    cout << "Register failed with: " << Error << endl;
   }
   
   HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW|WS_VISIBLE, 100, 100, 640, 480, 0, 0, Instance, 0);
   
   if(HandmadeHeroWindow == NULL) {
-    DWORD error = GetLastError();
-    cout << "Window created null or with error: " << error << endl;
+    DWORD Error = GetLastError();
+    cout << "Window created null or with error: " << Error << endl;
     return 0;
   }else {
-    running = true;
+    Running = true;
   }
 
+  ResizeDIBSection(&GlobalBackbuffer, 1208, 720);
 
   // Show window and get messages.
   ShowWindow(HandmadeHeroWindow, ComandShow);
   
   // Stuff for a simple animation.
-  int xOffset = 0;
-  int yOffset = 0;
+  int XOffset = 0;
+  int YOffset = 0;
 
   // While loop controled by a bool to keep the program running, because `PeekMessage` gets outta the loop when there are no messages.
-  while(running) {
-    MSG message;
-    while(PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
+  while(Running) {
+    MSG Message;
+    while(PeekMessage(&Message, 0, 0, 0, PM_REMOVE)) {
       // Check for a quit message to guarantee the program will terminate when desired.
-      if(message.message == WM_QUIT) {
-        running = false;
+      if(Message.message == WM_QUIT) {
+        Running = false;
       }
       // Message handling
-      TranslateMessage(&message);
-      DispatchMessage(&message);
+      TranslateMessage(&Message);
+      DispatchMessage(&Message);
     }
-    renderGrad(xOffset, yOffset);
+    RenderGrad(GlobalBackbuffer, XOffset, YOffset);
     
     // Procedure to update the window to animate properly (better turn this into a function).
-    HDC deviceContext = GetDC(HandmadeHeroWindow);
-    RECT ClientRect;
-    GetClientRect(HandmadeHeroWindow, &ClientRect);
-    int ClientRectWidth = ClientRect.right - ClientRect.left;
-    int ClientRectHeight = ClientRect.bottom - ClientRect.top;
-    updateClientWindow(deviceContext, &ClientRect, 0, 0, ClientRectWidth, ClientRectHeight);
-    ReleaseDC(HandmadeHeroWindow, deviceContext);
+    HDC DeviceContext = GetDC(HandmadeHeroWindow);
+    ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(HandmadeHeroWindow);
+    DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer, 0, 0, ClientWindowDimension.Width, ClientWindowDimension.Height);
+    ReleaseDC(HandmadeHeroWindow, DeviceContext);
 
-    xOffset++;
+    XOffset++;
   }
 
   return 0;

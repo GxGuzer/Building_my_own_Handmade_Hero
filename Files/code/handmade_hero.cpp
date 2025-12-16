@@ -46,15 +46,16 @@ void RenderGrad(BitmapBuffer Buffer, int XOffset, int YOffset) {
     uint *Pixel = (uint *)Row;
     for (int X = 0; X < Buffer.Width; X++) {
       
-      uchar Blue = (X + XOffset);
-      uchar Green = (Y + YOffset);
+      uchar Red = X + XOffset;
+      uchar Green = Y + YOffset;
+      uchar Blue = 0;
 
-      *Pixel = ((Green << 8) | Blue);
-      Pixel++;
+      *Pixel = ((Red << 16) | (Green << 8) | Blue);
+      *Pixel++;
 
     }
     Row += Buffer.Pitch;
-  }  
+  }
 }
 
 // Bitmap creation and manipulation.
@@ -85,7 +86,7 @@ static void ResizeDIBSection(BitmapBuffer *Buffer, int Width, int Height) {
   // This function have a chance to be cleared.
 }
 
-static void DisplayBuffer(HDC DeviceContext, int WindowWidth, int WindowHeight, BitmapBuffer Buffer, int X, int Y, int Width, int Height) {
+static void DisplayBuffer(HDC DeviceContext, int WindowWidth, int WindowHeight, BitmapBuffer Buffer) {
   StretchDIBits(DeviceContext, 0, 0, WindowWidth, WindowHeight, 0, 0, Buffer.Width, Buffer.Height, Buffer.Memory, &Buffer.Info, DIB_RGB_COLORS, SRCCOPY);
 }
 
@@ -118,18 +119,8 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
     PAINTSTRUCT Paint;
     HDC DeviceContext = BeginPaint(Window, &Paint);
 
-    int X = Paint.rcPaint.left;
-    int Y = Paint.rcPaint.top;
-    int Width = Paint.rcPaint.right - Paint.rcPaint.left;
-    int Height = Paint.rcPaint.bottom - Paint.rcPaint.top;
-
-    COLORREF White = RGB(255, 255, 255);
-    HBRUSH WhiteBrush = CreateSolidBrush(White);
-    FillRect(DeviceContext, &Paint.rcPaint, WhiteBrush);
-    DeleteObject(WhiteBrush);
-
     ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(Window);
-    DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer, X, Y, Width, Height);
+    DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer);
 
     EndPaint(Window, &Paint);
   }
@@ -137,9 +128,11 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
 
   case WM_CLOSE:
   {
+    /*
     if(MessageBox(Window, "Get Out?", "Close the game?", MB_OKCANCEL) == IDOK) {
       DestroyWindow(Window);
-    }
+    }*/
+    DestroyWindow(Window);
     cout << "Close" << endl;
   }
   break;
@@ -203,10 +196,11 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
     // Procedure to update the window to animate properly (better turn this into a function).
     HDC DeviceContext = GetDC(HandmadeHeroWindow);
     ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(HandmadeHeroWindow);
-    DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer, 0, 0, ClientWindowDimension.Width, ClientWindowDimension.Height);
+    DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer);
     ReleaseDC(HandmadeHeroWindow, DeviceContext);
 
     XOffset++;
+    YOffset++;
   }
 
   return 0;

@@ -110,7 +110,7 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
 
   case WM_ACTIVATEAPP:
   {
-    cout << "Active/Deactive" << endl;
+    //cout << "Active/Deactive" << endl;
   }
   break;
   
@@ -150,7 +150,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
   
   // Class and window creation.
   WNDCLASS WindowClass = {};
-  WindowClass.style = CS_HREDRAW|CS_VREDRAW;
+  WindowClass.style = CS_HREDRAW|CS_VREDRAW|CS_OWNDC;
   WindowClass.lpfnWndProc = WindowProc;
   WindowClass.hInstance = Instance;
   WindowClass.lpszClassName = "HandmadeHeroWindowClass";
@@ -172,7 +172,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 
   ResizeDIBSection(&GlobalBackbuffer, 1208, 720);
 
-  // Show window and get messages.
+  // Show window.
   ShowWindow(HandmadeHeroWindow, ComandShow);
   
   // Stuff for a simple animation.
@@ -191,13 +191,17 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
       TranslateMessage(&Message);
       DispatchMessage(&Message);
     }
-    RenderGrad(GlobalBackbuffer, XOffset, YOffset);
     
-    // Procedure to update the window to animate properly (better turn this into a function).
+    // Input handling procedure.
+    /*for(DWORD ControllerIndex = 0; ControllerIndex < XUSER_MAX_COUNT; ControllerIndex++) {
+      
+    }*/
+    
+    // Procedure to update the window to animate properly.
+    RenderGrad(GlobalBackbuffer, XOffset, YOffset);
     HDC DeviceContext = GetDC(HandmadeHeroWindow);
     ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(HandmadeHeroWindow);
     DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer);
-    ReleaseDC(HandmadeHeroWindow, DeviceContext);
 
     XOffset++;
     YOffset++;

@@ -331,3 +331,41 @@ With classes this behavior is different since classes can have **constructors** 
 
 Locality in this case matters because whenever you put a declaration of a class, it will call those functions and if you don't want those functions to be called at a certain region you shall not put a object there.
 Constructors are called as soon on declaration and Destructors are called as soon as it's get out of scope or is destroyed by code.
+
+# 30/12/2025
+
+## Input Withdrawal Methods
+
+### Interrupt
+
+Interrupt based devices send a interrupt signal to the CPU when a important change happened (a button pressed, sensor wigle, etc.), this is an old way and it got rare.
+
+### Poll
+
+Poll based devices store its own data waiting for the CPU to request them, then the data is processed at the program's designed pace.
+
+Or the data can be pulled by the CPU into a buffer, where it'll be processed with a queue timing.
+
+## XInput
+
+XInput is the Windows API for handling controller inputs.
+The main work here is that we're going to cycle through all the controllers available, get theirs state and handle whatever data we received.
+```cpp
+for(DWORD ControllerIndex = 0; ControllerIndex < XUSER_MAX_COUNT; ControllerIndex++) {
+      XINPUT_STATE ControllerState;
+      if(XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS) {
+        // Controller connected.
+      }else {
+        // Controller not connected or error.
+      }
+    }
+```
+
+The `XINPUT_STATE` is a struct where it flags if the state of the controller changed and it contains the struct with the state.
+Its parameters are:
+`dwPacketNumber` the number of the current "state index" of the controller, if the controller state changes this number changes as well, if it didn't changed that means the controller state hasn't changed.
+`Gamepad` is a `XINPUT_GAMEPAD` struct that contains details of the controller state, such as which buttons are pressed, triggers' pressure and joysticks direction. More details [here](https://learn.microsoft.com/en-us/windows/win32/api/XInput/ns-xinput-xinput_gamepad#members).
+
+### Note on XInput unresolved symbol
+
+It seems that not all people would have the adequate system for XInput linkage. I assume i wouldn't get any problems since Microsoft's official documents signs older version of windows, and my program still is working for now.

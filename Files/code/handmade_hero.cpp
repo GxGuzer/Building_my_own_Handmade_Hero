@@ -1,6 +1,8 @@
 #include <Windows.h>
+#include <Xinput.h>
 #include <iostream>
 using namespace std;
+//TODO: Make a console "catch" for errors.
 
 typedef unsigned char uchar;
 typedef unsigned short ushort;
@@ -37,6 +39,32 @@ ClientWindowDimension GetClientWindowDimension(HWND WindowHandle) {
   Result.Height = ClientRect.bottom - ClientRect.top;
 
   return Result;
+}
+
+DWORD WINAPI ThereAreNoXInputLib(DWORD dwUserIndex, XINPUT_STATE* pState) {
+  return 0;
+}
+
+typedef DWORD WINAPI XInputGetStateFunction(DWORD dwUserIndex, XINPUT_STATE* pState);
+static XInputGetStateFunction *XInputGetStatePointer = ThereAreNoXInputLib;
+#define XInputGetState XInputGetStatePointer
+
+typedef DWORD WINAPI XInputSetStateFunction(DWORD dwUserIndex, XINPUT_STATE* pState);
+static XInputSetStateFunction *XInputSetStatePointer = ThereAreNoXInputLib;
+#define XInputSetState XInputSetStatePointer
+
+static void LoadXInput(void) {
+  HMODULE XInputLibLoad = LoadLibrary("xinput1_4.dll");
+  if(XInputLibLoad) {
+    XInputGetStatePointer = (XInputGetStateFunction *)GetProcAddress(XInputLibLoad, "XInputGetState");
+    XInputSetStatePointer = (XInputSetStateFunction *)GetProcAddress(XInputLibLoad, "XInputSetState");
+  }else {
+    XInputLibLoad = LoadLibrary("xinput1_3.dll");
+    if(XInputLibLoad) {
+      XInputGetStatePointer = (XInputGetStateFunction *)GetProcAddress(XInputLibLoad, "XInputGetState");
+      XInputSetStatePointer = (XInputSetStateFunction *)GetProcAddress(XInputLibLoad, "XInputSetState");
+    }
+  }
 }
 
 void RenderGrad(BitmapBuffer Buffer, int XOffset, int YOffset) {
@@ -90,6 +118,14 @@ static void DisplayBuffer(HDC DeviceContext, int WindowWidth, int WindowHeight, 
   StretchDIBits(DeviceContext, 0, 0, WindowWidth, WindowHeight, 0, 0, Buffer.Width, Buffer.Height, Buffer.Memory, &Buffer.Info, DIB_RGB_COLORS, SRCCOPY);
 }
 
+// Struct with the "player state".
+struct {
+  bool Up;
+  bool Left;
+  bool Down;
+  bool Right;
+} ScreenState;
+
 // Window procedure to messages.
 LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam) {
   LRESULT Result = 0;
@@ -105,12 +141,6 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
   {
     // TODO: Error handle with window recreation?
     PostQuitMessage(0); 
-  }
-  break;
-
-  case WM_ACTIVATEAPP:
-  {
-    //cout << "Active/Deactive" << endl;
   }
   break;
   
@@ -133,7 +163,46 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
       DestroyWindow(Window);
     }*/
     DestroyWindow(Window);
-    cout << "Close" << endl;
+    //cout << "Close" << endl;
+  }
+  break;
+
+  case WM_KEYDOWN: case WM_KEYUP:
+  {
+    uint VirtualKeyCode = WParam;
+    bool IsPressed = !(LParam & (1 << 31));
+    if(IsPressed) {
+      switch (VirtualKeyCode)
+      case 'W':
+      {
+        ScreenState.Up = true;
+      }
+      break;
+      
+      case 'A':
+      {
+        ScreenState.Left = true;
+      }
+      break;
+      
+      case 'S':
+      {
+        ScreenState.Down = true;
+      }
+      break;
+      
+      case 'D':
+      {
+        ScreenState.Right = true;
+      }
+      break;
+
+      case VK_ESCAPE:
+      {
+        Running = false;
+      }
+      break;
+    }
   }
   break;
 
@@ -147,6 +216,8 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
 }
 
 int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, int ComandShow) {
+  // XInput library Load.
+  LoadXInput(); 
   
   // Class and window creation.
   WNDCLASS WindowClass = {};
@@ -157,14 +228,14 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
   
   if(!RegisterClass(&WindowClass)) {
     DWORD Error = GetLastError();
-    cout << "Register failed with: " << Error << endl;
+    //cout << "Register failed with: " << Error << endl;
   }
   
   HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW|WS_VISIBLE, 100, 100, 640, 480, 0, 0, Instance, 0);
   
   if(HandmadeHeroWindow == NULL) {
     DWORD Error = GetLastError();
-    cout << "Window created null or with error: " << Error << endl;
+    //cout << "Window created null or with error: " << Error << endl;
     return 0;
   }else {
     Running = true;
@@ -193,9 +264,31 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
     }
     
     // Input handling procedure.
-    /*for(DWORD ControllerIndex = 0; ControllerIndex < XUSER_MAX_COUNT; ControllerIndex++) {
-      
-    }*/
+    for(DWORD ControllerIndex = 0; ControllerIndex < XUSER_MAX_COUNT; ControllerIndex++) {
+      XINPUT_STATE ControllerState;
+      if(XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS) {
+        // Controller connected.
+        // Controller input collection.
+        XINPUT_GAMEPAD *GamepadState = &ControllerState.Gamepad;
+        bool DpadUp = (GamepadState->wButtons & XINPUT_GAMEPAD_DPAD_UP);
+        bool DpadLeft = (GamepadState->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
+        bool DpadDown = (GamepadState->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
+        bool DpadRight = (GamepadState->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
+        bool StartButton = (GamepadState->wButtons & XINPUT_GAMEPAD_START);
+        bool SelectButton = (GamepadState->wButtons & XINPUT_GAMEPAD_BACK);
+        bool LeftShoulder = (GamepadState->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
+        bool RightShoulder = (GamepadState->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
+        bool AButton = (GamepadState->wButtons & XINPUT_GAMEPAD_A);
+        bool BButton = (GamepadState->wButtons & XINPUT_GAMEPAD_B);
+        bool XButton = (GamepadState->wButtons & XINPUT_GAMEPAD_X);
+        bool YButton = (GamepadState->wButtons & XINPUT_GAMEPAD_Y);
+        short LeftJoystickX = GamepadState->sThumbLX;
+        short LeftJoystickY = GamepadState->sThumbLY;
+        
+      }else {
+        // Controller not connected or error.
+      }
+    }
     
     // Procedure to update the window to animate properly.
     RenderGrad(GlobalBackbuffer, XOffset, YOffset);
@@ -203,8 +296,23 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
     ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(HandmadeHeroWindow);
     DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer);
 
-    XOffset++;
-    YOffset++;
+    if(ScreenState.Up) {
+      YOffset += 4;
+    }
+    if(ScreenState.Left) {
+      XOffset += 4;
+    }
+    if(ScreenState.Down) {
+      YOffset -= 4;
+    }
+    if(ScreenState.Right) {
+      XOffset -= 4;
+    }
+
+    ScreenState.Up = false;
+    ScreenState.Left = false;
+    ScreenState.Down = false;
+    ScreenState.Right = false;
   }
 
   return 0;

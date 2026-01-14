@@ -1,5 +1,6 @@
 #include <Windows.h>
 #include <Xinput.h>
+#include <dsound.h>
 #include <iostream>
 using namespace std;
 //TODO: Make a console "catch" for errors.
@@ -12,6 +13,8 @@ typedef long long llong;
 typedef unsigned long long ullong;
 
 bool Running = false;
+
+// RENDER
 
 // Bitmap variables and functions.
 struct BitmapBuffer {
@@ -39,32 +42,6 @@ ClientWindowDimension GetClientWindowDimension(HWND WindowHandle) {
   Result.Height = ClientRect.bottom - ClientRect.top;
 
   return Result;
-}
-
-DWORD WINAPI ThereAreNoXInputLib(DWORD dwUserIndex, XINPUT_STATE* pState) {
-  return 0;
-}
-
-typedef DWORD WINAPI XInputGetStateFunction(DWORD dwUserIndex, XINPUT_STATE* pState);
-static XInputGetStateFunction *XInputGetStatePointer = ThereAreNoXInputLib;
-#define XInputGetState XInputGetStatePointer
-
-typedef DWORD WINAPI XInputSetStateFunction(DWORD dwUserIndex, XINPUT_STATE* pState);
-static XInputSetStateFunction *XInputSetStatePointer = ThereAreNoXInputLib;
-#define XInputSetState XInputSetStatePointer
-
-static void LoadXInput(void) {
-  HMODULE XInputLibLoad = LoadLibrary("xinput1_4.dll");
-  if(XInputLibLoad) {
-    XInputGetStatePointer = (XInputGetStateFunction *)GetProcAddress(XInputLibLoad, "XInputGetState");
-    XInputSetStatePointer = (XInputSetStateFunction *)GetProcAddress(XInputLibLoad, "XInputSetState");
-  }else {
-    XInputLibLoad = LoadLibrary("xinput1_3.dll");
-    if(XInputLibLoad) {
-      XInputGetStatePointer = (XInputGetStateFunction *)GetProcAddress(XInputLibLoad, "XInputGetState");
-      XInputSetStatePointer = (XInputSetStateFunction *)GetProcAddress(XInputLibLoad, "XInputSetState");
-    }
-  }
 }
 
 void RenderGrad(BitmapBuffer Buffer, int XOffset, int YOffset) {
@@ -108,7 +85,7 @@ static void ResizeDIBSection(BitmapBuffer *Buffer, int Width, int Height) {
 
   // Memory sizing considering a padding for memory alignment.
   int BitmapMemorySize = (Buffer->Width*Buffer->Height)*Buffer->BytePerPixel;
-  Buffer->Memory = VirtualAlloc(NULL, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+  Buffer->Memory = VirtualAlloc(NULL, BitmapMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   // Memory allocated and pointer stored.
 
   // This function have a chance to be cleared.
@@ -118,6 +95,113 @@ static void DisplayBuffer(HDC DeviceContext, int WindowWidth, int WindowHeight, 
   StretchDIBits(DeviceContext, 0, 0, WindowWidth, WindowHeight, 0, 0, Buffer.Width, Buffer.Height, Buffer.Memory, &Buffer.Info, DIB_RGB_COLORS, SRCCOPY);
 }
 
+// SOUND
+
+typedef HRESULT WINAPI MyDirectSoundCreateFunction(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter);
+
+// Load the sound library and creates sound buffers if succeed.
+static void LoadSound(HWND WindowHandle, int BufferSize, int SamplesPerSecond) {
+  // TODO: Make the first attempt of sound be with the modern sound API (XAudio2).
+
+  DWORD Error;
+
+  HMODULE DirectSoundLibLoad = LoadLibrary("dsound.dll");
+  if(DirectSoundLibLoad) {
+    MyDirectSoundCreateFunction *MyDirectSoundCreate = (MyDirectSoundCreateFunction *)GetProcAddress(DirectSoundLibLoad, "DirectSoundCreate");
+
+    LPDIRECTSOUND DirectSoundObject;
+    if(SUCCEEDED(MyDirectSoundCreate(0, &DirectSoundObject, 0))) {
+      if(SUCCEEDED(DirectSoundObject->SetCooperativeLevel(WindowHandle, DSSCL_PRIORITY))) {
+
+        WAVEFORMATEX WaveFormatex = {};
+        WaveFormatex.wFormatTag = WAVE_FORMAT_PCM;
+        WaveFormatex.nChannels = 2;
+        WaveFormatex.nSamplesPerSec = SamplesPerSecond;
+        WaveFormatex.wBitsPerSample = 16;
+        WaveFormatex.nBlockAlign = (WaveFormatex.nChannels*WaveFormatex.wBitsPerSample)/8;
+        WaveFormatex.nAvgBytesPerSec = WaveFormatex.nSamplesPerSec*WaveFormatex.nBlockAlign;
+        
+        // "Create" a primary sound buffer.
+        LPDIRECTSOUNDBUFFER PrimarySoundBuffer;
+        DSBUFFERDESC PrimarySoundBufferDescription = {};
+        PrimarySoundBufferDescription.dwSize = sizeof(PrimarySoundBufferDescription);
+        PrimarySoundBufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;   
+        PrimarySoundBufferDescription.guid3DAlgorithm = GUID_NULL;
+        // the members dwBufferBytes and lpwfxFormat are 0.
+        if(SUCCEEDED(DirectSoundObject->CreateSoundBuffer(&PrimarySoundBufferDescription, &PrimarySoundBuffer, 0))) {
+          
+          if(SUCCEEDED(PrimarySoundBuffer->SetFormat(&WaveFormatex))) {
+            // Buffer format set.
+          }else {
+            // Error catch.
+            Error = GetLastError();
+          }
+        }else {
+          // Error catch.
+          Error = GetLastError();
+        }
+
+        // "Create" a secondary sound buffer.
+        LPDIRECTSOUNDBUFFER SecondarySoundBuffer;
+        DSBUFFERDESC SecondarySoundBufferDescription = {};
+        SecondarySoundBufferDescription.dwSize = sizeof(SecondarySoundBufferDescription);
+        SecondarySoundBufferDescription.dwFlags = 0; // maybe put the flag DSBCAPS_GETCURRENTPOSITION2.
+        SecondarySoundBufferDescription.dwBufferBytes = BufferSize;
+        SecondarySoundBufferDescription.lpwfxFormat = &WaveFormatex;
+        SecondarySoundBufferDescription.guid3DAlgorithm = GUID_NULL;
+        if(SUCCEEDED(DirectSoundObject->CreateSoundBuffer(&SecondarySoundBufferDescription, &SecondarySoundBuffer, 0))) {
+          //
+        }else {
+          // Error catch.
+          Error = GetLastError();
+        }
+      }else {
+        // Error catch.
+        Error = GetLastError();
+      }
+
+    }else {
+      // Error catch.
+      Error = GetLastError();
+    }
+  }else {
+    // Error catch.
+    Error = GetLastError();
+  }
+
+  // BufferSize goes on secondary buffer.
+  
+  // Start playing.
+}
+
+// INPUT
+
+DWORD WINAPI ThereAreNoXInputLib(DWORD dwUserIndex, XINPUT_STATE* pState) {
+  return ERROR_DEVICE_NOT_CONNECTED;
+}
+
+typedef DWORD WINAPI XInputGetStateFunction(DWORD dwUserIndex, XINPUT_STATE* pState);
+static XInputGetStateFunction *XInputGetStatePointer = ThereAreNoXInputLib;
+#define XInputGetState XInputGetStatePointer
+
+typedef DWORD WINAPI XInputSetStateFunction(DWORD dwUserIndex, XINPUT_STATE* pState);
+static XInputSetStateFunction *XInputSetStatePointer = ThereAreNoXInputLib;
+#define XInputSetState XInputSetStatePointer
+
+static void LoadXInputLib(void) {
+  HMODULE XInputLibLoad = LoadLibrary("xinput1_4.dll");
+  if(XInputLibLoad) {
+    XInputGetStatePointer = (XInputGetStateFunction *)GetProcAddress(XInputLibLoad, "XInputGetState");
+    XInputSetStatePointer = (XInputSetStateFunction *)GetProcAddress(XInputLibLoad, "XInputSetState");
+  }else {
+    XInputLibLoad = LoadLibrary("xinput1_3.dll");
+    if(XInputLibLoad) {
+      XInputGetStatePointer = (XInputGetStateFunction *)GetProcAddress(XInputLibLoad, "XInputGetState");
+      XInputSetStatePointer = (XInputSetStateFunction *)GetProcAddress(XInputLibLoad, "XInputSetState");
+    }
+  }
+}
+
 // Struct with the "player state".
 struct {
   bool Up;
@@ -125,6 +209,8 @@ struct {
   bool Down;
   bool Right;
 } ScreenState;
+
+// WINDOW
 
 // Window procedure to messages.
 LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam) {
@@ -172,7 +258,7 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
     uint VirtualKeyCode = WParam;
     bool IsPressed = !(LParam & (1 << 31));
     if(IsPressed) {
-      switch (VirtualKeyCode)
+      switch (VirtualKeyCode) {
       case 'W':
       {
         ScreenState.Up = true;
@@ -202,6 +288,7 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
         Running = false;
       }
       break;
+      }
     }
   }
   break;
@@ -216,8 +303,6 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
 }
 
 int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, int ComandShow) {
-  // XInput library Load.
-  LoadXInput(); 
   
   // Class and window creation.
   WNDCLASS WindowClass = {};
@@ -241,9 +326,12 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
     Running = true;
   }
 
-  ResizeDIBSection(&GlobalBackbuffer, 1208, 720);
+  // Library loads.
+  LoadXInputLib();
+  LoadSound(HandmadeHeroWindow, 48000*(sizeof(short)*2), 48000);
 
   // Show window.
+  ResizeDIBSection(&GlobalBackbuffer, 1208, 720);
   ShowWindow(HandmadeHeroWindow, ComandShow);
   
   // Stuff for a simple animation.

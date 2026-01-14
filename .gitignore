@@ -1,13 +1,5 @@
 /Files/build/.vs
 /summary_for_git.txt
-/Files/build/bne.bat
-/Files/build/build.bat
-/Files/build/debug.bat
-/Files/build/desktop.bat
-/Files/build/exe.bat
-/Files/build/.vs
-Files/build/.vs/handmade_hero/v17/.suo
-Files/build/.vs/handmade_hero/v17/Browse.VC.db
-Files/build/.vs/handmade_hero/v17/DocumentLayout.backup.json
-Files/build/.vs/handmade_hero/v17/DocumentLayout.json
-.vscode/
+*.bat
+/Files/build/.vs/**
+.vscode/**

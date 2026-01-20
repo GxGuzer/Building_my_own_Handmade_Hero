@@ -81,10 +81,10 @@ static void ResizeDIBSection(BitmapBuffer *Buffer, int Width, int Height) {
   Buffer->Info.bmiHeader.biBitCount = 32;
   Buffer->Info.bmiHeader.biCompression = BI_RGB;
 
-  Buffer->Pitch = Width*Buffer->BytePerPixel;
+  Buffer->Pitch = Width * Buffer->BytePerPixel;
 
   // Memory sizing considering a padding for memory alignment.
-  int BitmapMemorySize = (Buffer->Width*Buffer->Height)*Buffer->BytePerPixel;
+  int BitmapMemorySize = (Buffer->Width * Buffer->Height) * Buffer->BytePerPixel;
   Buffer->Memory = VirtualAlloc(NULL, BitmapMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   // Memory allocated and pointer stored.
 
@@ -96,6 +96,8 @@ static void DisplayBuffer(HDC DeviceContext, int WindowWidth, int WindowHeight, 
 }
 
 // SOUND
+
+LPDIRECTSOUNDBUFFER GlobalSecondarySoundBuffer;
 
 typedef HRESULT WINAPI MyDirectSoundCreateFunction(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter);
 
@@ -117,9 +119,9 @@ static void LoadSound(HWND WindowHandle, int BufferSize, int SamplesPerSecond) {
         WaveFormatex.wFormatTag = WAVE_FORMAT_PCM;
         WaveFormatex.nChannels = 2;
         WaveFormatex.nSamplesPerSec = SamplesPerSecond;
-        WaveFormatex.wBitsPerSample = 16;
-        WaveFormatex.nBlockAlign = (WaveFormatex.nChannels*WaveFormatex.wBitsPerSample)/8;
-        WaveFormatex.nAvgBytesPerSec = WaveFormatex.nSamplesPerSec*WaveFormatex.nBlockAlign;
+        WaveFormatex.wBitsPerSample = 24;
+        WaveFormatex.nBlockAlign = (WaveFormatex.nChannels * WaveFormatex.wBitsPerSample) / 8;
+        WaveFormatex.nAvgBytesPerSec = WaveFormatex.nSamplesPerSec * WaveFormatex.nBlockAlign;
         
         // "Create" a primary sound buffer.
         LPDIRECTSOUNDBUFFER PrimarySoundBuffer;
@@ -141,16 +143,15 @@ static void LoadSound(HWND WindowHandle, int BufferSize, int SamplesPerSecond) {
           Error = GetLastError();
         }
 
-        // "Create" a secondary sound buffer.
-        LPDIRECTSOUNDBUFFER SecondarySoundBuffer;
+        // "Create" a secondary sound buffer. 
         DSBUFFERDESC SecondarySoundBufferDescription = {};
         SecondarySoundBufferDescription.dwSize = sizeof(SecondarySoundBufferDescription);
         SecondarySoundBufferDescription.dwFlags = 0; // maybe put the flag DSBCAPS_GETCURRENTPOSITION2.
         SecondarySoundBufferDescription.dwBufferBytes = BufferSize;
         SecondarySoundBufferDescription.lpwfxFormat = &WaveFormatex;
         SecondarySoundBufferDescription.guid3DAlgorithm = GUID_NULL;
-        if(SUCCEEDED(DirectSoundObject->CreateSoundBuffer(&SecondarySoundBufferDescription, &SecondarySoundBuffer, 0))) {
-          //
+        if(SUCCEEDED(DirectSoundObject->CreateSoundBuffer(&SecondarySoundBufferDescription, &GlobalSecondarySoundBuffer, 0))) {
+          // Secondary buffer created.
         }else {
           // Error catch.
           Error = GetLastError();
@@ -244,10 +245,10 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
 
   case WM_CLOSE:
   {
-    /*
+     /*
     if(MessageBox(Window, "Get Out?", "Close the game?", MB_OKCANCEL) == IDOK) {
       DestroyWindow(Window);
-    }*/
+    }*/ 
     DestroyWindow(Window);
     //cout << "Close" << endl;
   }
@@ -306,7 +307,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
   
   // Class and window creation.
   WNDCLASS WindowClass = {};
-  WindowClass.style = CS_HREDRAW|CS_VREDRAW|CS_OWNDC;
+  WindowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
   WindowClass.lpfnWndProc = WindowProc;
   WindowClass.hInstance = Instance;
   WindowClass.lpszClassName = "HandmadeHeroWindowClass";
@@ -316,7 +317,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
     //cout << "Register failed with: " << Error << endl;
   }
   
-  HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW|WS_VISIBLE, 100, 100, 640, 480, 0, 0, Instance, 0);
+  HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 100, 100, 640, 480, 0, 0, Instance, 0);
   
   if(HandmadeHeroWindow == NULL) {
     DWORD Error = GetLastError();
@@ -326,17 +327,27 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
     Running = true;
   }
 
+  // Stuff for a simple animation.
+  int XOffset = 0;
+  int YOffset = 0;
+
+  // Stuff for audio.
+  int SamplePerSeconds = 48000;
+  int BytesPerSample = sizeof(short) * 2;
+  int SoundBufferSize = SamplePerSeconds * BytesPerSample;
+  //int SquareWavePosition = 0;
+  uint RunningSampleIndex = 0;
+  int ToneHertz = 256;
+  short ToneVolume = 4000;
+  int SquareWavePeriod = SamplePerSeconds / ToneHertz;
+
   // Library loads.
   LoadXInputLib();
-  LoadSound(HandmadeHeroWindow, 48000*(sizeof(short)*2), 48000);
+  LoadSound(HandmadeHeroWindow, SoundBufferSize, SamplePerSeconds);
 
   // Show window.
   ResizeDIBSection(&GlobalBackbuffer, 1208, 720);
   ShowWindow(HandmadeHeroWindow, ComandShow);
-  
-  // Stuff for a simple animation.
-  int XOffset = 0;
-  int YOffset = 0;
 
   // While loop controled by a bool to keep the program running, because `PeekMessage` gets outta the loop when there are no messages.
   while(Running) {
@@ -378,7 +389,46 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
       }
     }
     
-    // Procedure to update the window to animate properly.
+    // Procedure to output the program.
+    DWORD CurrentSoundPlayCursor;
+    DWORD CurrentSoundWriteCursor;
+    if(SUCCEEDED(GlobalSecondarySoundBuffer->GetCurrentPosition(&CurrentSoundPlayCursor, &CurrentSoundWriteCursor))) {
+      DWORD WritePointerOffset = RunningSampleIndex * BytesPerSample % SoundBufferSize;
+      DWORD WriteRegionLength;
+      if(WritePointerOffset > CurrentSoundPlayCursor) {
+        WriteRegionLength = SoundBufferSize - WritePointerOffset;
+        WriteRegionLength += CurrentSoundPlayCursor;
+      }else {
+        WriteRegionLength = CurrentSoundPlayCursor - WritePointerOffset;
+      }
+
+      void *FirstWriteRegionPointer;
+      DWORD FirstWriteRegionLength;
+      void *SecondWriteRegionPointer;
+      DWORD SecondWriteRegionLength;
+      if(SUCCEEDED(GlobalSecondarySoundBuffer->Lock(WritePointerOffset, WriteRegionLength, &FirstWriteRegionPointer, &FirstWriteRegionLength, &SecondWriteRegionPointer, &SecondWriteRegionLength, 0))) {
+
+        short *SampleOutput = (short *)FirstWriteRegionPointer;
+        DWORD FirstRegionSampleCounter = FirstWriteRegionLength / BytesPerSample;
+        for(DWORD SampleIndex = 0; SampleIndex < FirstWriteRegionLength; SampleIndex++) {
+          short SampleValue = ((RunningSampleIndex / (SquareWavePeriod / 2) % 2)) ? ToneVolume : -ToneVolume;
+          *SampleOutput++ = SampleValue;
+          *SampleOutput++ = SampleValue;
+          ++RunningSampleIndex;
+        }
+        DWORD SecondRegionSampleCounter = SecondWriteRegionLength / BytesPerSample;
+        SampleOutput = (short *)SecondWriteRegionPointer;
+        for(DWORD SampleIndex = 0; SampleIndex < SecondWriteRegionLength; SampleIndex++) {
+          short SampleValue = ((RunningSampleIndex / (SquareWavePeriod / 2) % 2)) ? ToneVolume : -ToneVolume;
+          *SampleOutput++ = SampleValue;
+          *SampleOutput++ = SampleValue;
+          ++RunningSampleIndex;
+        }
+        GlobalSecondarySoundBuffer->Unlock(&FirstWriteRegionPointer, FirstWriteRegionLength, &SecondWriteRegionPointer, SecondWriteRegionLength);
+      }
+    }
+    GlobalSecondarySoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
+
     RenderGrad(GlobalBackbuffer, XOffset, YOffset);
     HDC DeviceContext = GetDC(HandmadeHeroWindow);
     ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(HandmadeHeroWindow);

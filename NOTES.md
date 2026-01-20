@@ -369,3 +369,91 @@ Its parameters are:
 ### Note on XInput unresolved symbol
 
 It seems that not all people would have the adequate system for XInput linkage. I assume i wouldn't get any problems since Microsoft's official documents signs older version of windows, and my program still is working for now.
+
+# 19/01/2026
+
+## DirectSound API
+
+DirectSound API is currently deprecated and i'll switch to XAudio2 later
+
+### DirectSound procedure
+
+- **Load the library:**
+
+This API will have the same symbol problem as XInput so i'll first load the `dsound.dll` library and then direct a pointer to the desired function.
+
+- **Create DirectSound object and set priority:**
+
+We need to create a DS (DirectSound) object and then from that object set the priority type with the `SetCooperativeLevel()` function within the DS object.
+
+`SetCooperativeLevel()` will receive a handle to the target window and the priority type to set the program.
+
+The primary buffer won't be used for the sound output and it serves only to receive a handle to set the format of the waveform-audio data (which i'll refer to just as "audio data").
+
+- **Initialize required structures:**
+
+To create a sound buffer we first initialize a pointer to the buffer struct `LPDIRECSOUNDBUFFER`, a struct of the buffer description `DSBUFFERDESC` and a `WAVEFORMATEX` structure to set the format of the audio data.
+
+The buffer description will contain data about the desired buffer such as the size of itself, the flags, the size of the new buffer, the waveformat and the guid.
+In the case of theK primary buffer, the only flag will be `DSBCAPS_PRIMARYBUFFER`, buffer size and waveformat must be 0. GUID is only used on 3D audio which won't be our case, so it must receive `GUID_NULL` which is NOT zero.
+
+- **Create primary sound buffer and set format:**
+
+The buffer is finally created with the DS object function `CreateSoundBuffer()` which will receive pointers for the buffer description and the buffer itself.
+
+Then we can set the audio data format with the buffer's `SetFormat()` function, which receives only a pointer to a WAVEFORMATEX structure.
+
+- **Create secondary sound buffer:**
+
+The secondary buffer is the buffer we will actually store our audio on.
+It is created just like the primary buffer but its `DSBUFFERDESC` will receive the size and waveformat info as well to not having the `DSBCAPS_PRIMARYBUFFER` flag.
+
+You don't need a different DS object to create the secondary buffer.
+
+# 20/01/2026
+
+## Playing sound with DirectSound
+
+After all the object, buffer creation and structure filling shenanigans, it is time to play something.
+
+### Getting sound cursors
+
+First we need to know where we are on the buffer to write properly.
+
+The sound buffer works in a cycle manner (goes to the beginning when it ends) and it has two cursors: **play** and **write**.
+
+The play cursor is where the sound card is outputting the sound and the write cursor is ahead of the play cursor in order to avoid audio errors and weird noises.
+
+The DS buffer function `GetCurrentPosition()` is what is used to get such pointers, it receives the address of variables to store the pointers.
+
+First we need to know what region is availabe to write withou problems, there are two cases for such, when the write and play cursors are on the same loop and when the write cursor is on the next loop thus being behind the play cursor.
+
+When both cursors are on the same loop we need to write the bytes after the write cursor and before the play cursor leaving the space in between untouched.
+
+When the write cursor is one loop ahead, the bytes we should write to is just those in between the two pointers.
+
+_On the diagrams below, the '#' signals bytes free to write._
+
+```play and write on the same loop
+X###|------|#####X
+    ^      ^
+  play   write
+```
+
+```write one loop ahead
+X--|##########|--X
+   ^          ^
+ write      play
+```
+
+### Locking write regions
+
+After determining the regions to write, we must pass these on the DS buffer function `Lock()` where it will return us two pointers and two lengths.
+
+The second pointer and length are non-zero if the wrap around case occurs.
+
+After the lock we are free to modify the sound buffer and then we must release the buffer with the `Unlock()` function to notify you're done, not doing so will break the audio or just be silent.
+
+### Play the audio
+
+Now we must call the DS buffer `play()` function to effectively play the audio data on the buffer.

@@ -1,9 +1,12 @@
 #include <Windows.h>
 #include <Xinput.h>
 #include <dsound.h>
+#include <math.h>
 #include <iostream>
 using namespace std;
 //TODO: Make a console "catch" for errors.
+
+#define PI 3.14159265359f
 
 typedef unsigned char uchar;
 typedef unsigned short ushort;
@@ -119,8 +122,8 @@ static void LoadSound(HWND WindowHandle, int BufferSize, int SamplesPerSecond) {
         WaveFormatex.wFormatTag = WAVE_FORMAT_PCM;
         WaveFormatex.nChannels = 2;
         WaveFormatex.nSamplesPerSec = SamplesPerSecond;
-        WaveFormatex.wBitsPerSample = 24;
-        WaveFormatex.nBlockAlign = (WaveFormatex.nChannels * WaveFormatex.wBitsPerSample) / 8;
+        WaveFormatex.wBitsPerSample = 16;
+        WaveFormatex.nBlockAlign = WaveFormatex.nChannels * WaveFormatex.wBitsPerSample / 8;
         WaveFormatex.nAvgBytesPerSec = WaveFormatex.nSamplesPerSec * WaveFormatex.nBlockAlign;
         
         // "Create" a primary sound buffer.
@@ -173,6 +176,52 @@ static void LoadSound(HWND WindowHandle, int BufferSize, int SamplesPerSecond) {
   // BufferSize goes on secondary buffer.
   
   // Start playing.
+}
+
+// Stuff for audio.
+  struct SoundOutputConfig {
+    int SamplePerSeconds;
+    int BytesPerSample;
+    int SoundBufferSize;
+    uint RunningSampleIndex;
+    int ToneHertz;
+    short ToneVolume;
+    int WavePeriod;
+    bool SoundIsPlaying;
+  };
+
+static void FillSoundBuffer(SoundOutputConfig *SoundOutputConfig, DWORD WriteRegionOffset, DWORD WriteRegionLength) {
+
+  void *FirstWriteRegionPointer;
+  DWORD FirstWriteRegionLength;
+  void *SecondWriteRegionPointer;
+  DWORD SecondWriteRegionLength;
+  HRESULT LockResult = GlobalSecondarySoundBuffer->Lock(WriteRegionOffset, WriteRegionLength, &FirstWriteRegionPointer, &FirstWriteRegionLength, &SecondWriteRegionPointer, &SecondWriteRegionLength, 0); // Lock is returning an error: E_INVALIDARG
+  if(SUCCEEDED(LockResult)) {
+    short *SampleOutput = (short *)FirstWriteRegionPointer;
+    DWORD FirstRegionSampleCounter = FirstWriteRegionLength / SoundOutputConfig->BytesPerSample;
+    for(DWORD SampleIndex = 0; SampleIndex < FirstRegionSampleCounter; SampleIndex++) {
+      float t = 2.0f*PI * (float)SoundOutputConfig->RunningSampleIndex / (float)SoundOutputConfig->WavePeriod;
+      float SineValue = sinf(t);
+      short SampleValue = (short)(SineValue * SoundOutputConfig->ToneVolume);
+      *SampleOutput++ = SampleValue;
+      *SampleOutput++ = SampleValue;
+
+      SoundOutputConfig->RunningSampleIndex++;
+    }
+    DWORD SecondRegionSampleCounter = SecondWriteRegionLength / SoundOutputConfig->BytesPerSample;
+    SampleOutput = (short *)SecondWriteRegionPointer;
+    for(DWORD SampleIndex = 0; SampleIndex < SecondWriteRegionLength; SampleIndex++) {
+      float t = 2.0f*PI * (float)SoundOutputConfig->RunningSampleIndex / (float)SoundOutputConfig->WavePeriod;
+      float SineValue = sinf(t);
+      short SampleValue = (short)(SineValue * SoundOutputConfig->ToneVolume);
+      *SampleOutput++ = SampleValue;
+      *SampleOutput++ = SampleValue;
+      
+      SoundOutputConfig->RunningSampleIndex++;
+    }
+    GlobalSecondarySoundBuffer->Unlock(&FirstWriteRegionPointer, FirstWriteRegionLength, &SecondWriteRegionPointer, SecondWriteRegionLength);
+  }
 }
 
 // INPUT
@@ -331,19 +380,22 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
   int XOffset = 0;
   int YOffset = 0;
 
-  // Stuff for audio.
-  int SamplePerSeconds = 48000;
-  int BytesPerSample = sizeof(short) * 2;
-  int SoundBufferSize = SamplePerSeconds * BytesPerSample;
-  //int SquareWavePosition = 0;
-  uint RunningSampleIndex = 0;
-  int ToneHertz = 256;
-  short ToneVolume = 4000;
-  int SquareWavePeriod = SamplePerSeconds / ToneHertz;
+	// Stuff for audio.
+	DWORD CurrentSoundPlayCursor;
+	DWORD CurrentSoundWriteCursor;
+	SoundOutputConfig SoundOutput = {};
+	SoundOutput.SamplePerSeconds = 48000;
+	SoundOutput.BytesPerSample = sizeof(short) * 2;
+	SoundOutput.SoundBufferSize = SoundOutput.SamplePerSeconds * SoundOutput.BytesPerSample;
+	SoundOutput.RunningSampleIndex = 0;
+	SoundOutput.ToneHertz = 261;
+	SoundOutput.ToneVolume = 4000;
+	SoundOutput.WavePeriod = SoundOutput.SamplePerSeconds / SoundOutput.ToneHertz;
+	SoundOutput.SoundIsPlaying = false;
 
   // Library loads.
   LoadXInputLib();
-  LoadSound(HandmadeHeroWindow, SoundBufferSize, SamplePerSeconds);
+  LoadSound(HandmadeHeroWindow, SoundOutput.SoundBufferSize, SoundOutput.SamplePerSeconds);
 
   // Show window.
   ResizeDIBSection(&GlobalBackbuffer, 1208, 720);
@@ -390,44 +442,30 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
     }
     
     // Procedure to output the program.
-    DWORD CurrentSoundPlayCursor;
-    DWORD CurrentSoundWriteCursor;
-    if(SUCCEEDED(GlobalSecondarySoundBuffer->GetCurrentPosition(&CurrentSoundPlayCursor, &CurrentSoundWriteCursor))) {
-      DWORD WritePointerOffset = RunningSampleIndex * BytesPerSample % SoundBufferSize;
+		HRESULT GetBufferPositionResult = GlobalSecondarySoundBuffer->GetCurrentPosition(&CurrentSoundPlayCursor, &CurrentSoundWriteCursor);
+    if(SUCCEEDED(GetBufferPositionResult)) {
+      DWORD WriteRegionOffset = (SoundOutput.RunningSampleIndex * SoundOutput.BytesPerSample) % SoundOutput.SoundBufferSize;
       DWORD WriteRegionLength;
-      if(WritePointerOffset > CurrentSoundPlayCursor) {
-        WriteRegionLength = SoundBufferSize - WritePointerOffset;
-        WriteRegionLength += CurrentSoundPlayCursor;
-      }else {
-        WriteRegionLength = CurrentSoundPlayCursor - WritePointerOffset;
-      }
-
-      void *FirstWriteRegionPointer;
-      DWORD FirstWriteRegionLength;
-      void *SecondWriteRegionPointer;
-      DWORD SecondWriteRegionLength;
-      if(SUCCEEDED(GlobalSecondarySoundBuffer->Lock(WritePointerOffset, WriteRegionLength, &FirstWriteRegionPointer, &FirstWriteRegionLength, &SecondWriteRegionPointer, &SecondWriteRegionLength, 0))) {
-
-        short *SampleOutput = (short *)FirstWriteRegionPointer;
-        DWORD FirstRegionSampleCounter = FirstWriteRegionLength / BytesPerSample;
-        for(DWORD SampleIndex = 0; SampleIndex < FirstWriteRegionLength; SampleIndex++) {
-          short SampleValue = ((RunningSampleIndex / (SquareWavePeriod / 2) % 2)) ? ToneVolume : -ToneVolume;
-          *SampleOutput++ = SampleValue;
-          *SampleOutput++ = SampleValue;
-          ++RunningSampleIndex;
+			
+      if(WriteRegionOffset == CurrentSoundPlayCursor) {
+        if(SoundOutput.SoundIsPlaying) {
+          WriteRegionLength = 0;
+        }else {
+          WriteRegionLength = SoundOutput.SoundBufferSize;
         }
-        DWORD SecondRegionSampleCounter = SecondWriteRegionLength / BytesPerSample;
-        SampleOutput = (short *)SecondWriteRegionPointer;
-        for(DWORD SampleIndex = 0; SampleIndex < SecondWriteRegionLength; SampleIndex++) {
-          short SampleValue = ((RunningSampleIndex / (SquareWavePeriod / 2) % 2)) ? ToneVolume : -ToneVolume;
-          *SampleOutput++ = SampleValue;
-          *SampleOutput++ = SampleValue;
-          ++RunningSampleIndex;
-        }
-        GlobalSecondarySoundBuffer->Unlock(&FirstWriteRegionPointer, FirstWriteRegionLength, &SecondWriteRegionPointer, SecondWriteRegionLength);
-      }
+      }else if(WriteRegionOffset >= CurrentSoundPlayCursor) {
+				WriteRegionLength = SoundOutput.SoundBufferSize - WriteRegionOffset;
+				WriteRegionLength += CurrentSoundPlayCursor;
+			}else {
+				WriteRegionLength = CurrentSoundPlayCursor - WriteRegionOffset;
+			}
+			FillSoundBuffer(&SoundOutput, WriteRegionOffset, WriteRegionLength);
     }
-    GlobalSecondarySoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
+
+    if(!SoundOutput.SoundIsPlaying) {
+      GlobalSecondarySoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
+      SoundOutput.SoundIsPlaying = true;
+		}
 
     RenderGrad(GlobalBackbuffer, XOffset, YOffset);
     HDC DeviceContext = GetDC(HandmadeHeroWindow);

@@ -434,13 +434,15 @@ When the write cursor is one loop ahead, the bytes we should write to is just th
 
 _On the diagrams below, the '#' signals bytes free to write._
 
-```play and write on the same loop
+_play and write on the same loop._
+```
 X###|------|#####X
     ^      ^
   play   write
 ```
-
-```write one loop ahead
+K
+_Write one loop ahead._
+```
 X--|##########|--X
    ^          ^
  write      play
@@ -457,3 +459,62 @@ After the lock we are free to modify the sound buffer and then we must release t
 ### Play the audio
 
 Now we must call the DS buffer `play()` function to effectively play the audio data on the buffer.
+
+# 22/01/2026
+
+## How computers deals with fractions
+
+### Fixed point numbers
+
+On the old days where common computer hardware couldn't deal with floating point arithmetic, fraction numbers were a part of a byte integer.
+
+Let's say that a fraction variablLe is 32-bits long, the lower 8-bits of this variable were reserved to hold the fraction part as a number.
+
+So the decimal number is the integer part plus the division of the fraction representation by the size of the fraction bits.
+
+```
+n = whole number.
+i = integer part.
+f = fraction part.
+
+32-bit fixed point:
+X------------|----X
+      ^        ^
+   Integer  Fraction
+
+n = i + (f / 256) 
+in case of 8-bit fraction.
+```
+
+It's called **fixed point** because the precision and decimal points don't vary.
+
+### Floating point numbers
+
+Often just defined as computer fraction, floating point numbers use a certain technique that allow to vary the decimal depth of a number by using significant digits (mantissa) and an exponent to move it around.
+
+In this method the number is define as the mantissa times 2 to power of exponent.
+
+```
+N = whole number.
+M = mantissa.
+E = exponent.
+
+32-bit floating point:
+X----|------------X
+  ^       ^
+Exponent Mantissa
+
+N = M * 2^E
+```
+
+The exponent defines where the decimal point is, that's why it's called **floating point**.
+
+The exponent can be negative, indicating a lower decimal depth (e.g. 0.00000000000\[mantissa]) just like how scientific notation work, but in this case within binary.
+
+# 27/01/2026
+
+## DirectSound doesn't work anymore.
+
+So i've hit a wall which i think it is time to switch for XAudio2. So basically what's happening is that the program is passing _"invalid"_ arguments to the `Lock()` function, so we can't write on the buffer leaving a unsynch loop of the first buffer written.
+
+Tomorrow i'll start the studies on XAudio2.

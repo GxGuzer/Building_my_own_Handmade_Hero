@@ -384,7 +384,7 @@ This API will have the same symbol problem as XInput so i'll first load the `dso
 
 - **Create DirectSound object and set priority:**
 
-We need to create a DS (DirectSound) object and then from that object set the priority type with the `SetCooperativeLevel()` function within the DS object.
+We need to create a DS (DirectSound) object and then from that object set the priority type with the `SetCooperativeLevel()` method within the DS object.
 
 `SetCooperativeLevel()` will receive a handle to the target window and the priority type to set the program.
 
@@ -399,9 +399,9 @@ In the case of theK primary buffer, the only flag will be `DSBCAPS_PRIMARYBUFFER
 
 - **Create primary sound buffer and set format:**
 
-The buffer is finally created with the DS object function `CreateSoundBuffer()` which will receive pointers for the buffer description and the buffer itself.
+The buffer is finally created with the DS object method `CreateSoundBuffer()` which will receive pointers for the buffer description and the buffer itself.
 
-Then we can set the audio data format with the buffer's `SetFormat()` function, which receives only a pointer to a WAVEFORMATEX structure.
+Then we can set the audio data format with the buffer's `SetFormat()` method, which receives only a pointer to a WAVEFORMATEX structure.
 
 - **Create secondary sound buffer:**
 
@@ -424,7 +424,7 @@ The sound buffer works in a cycle manner (goes to the beginning when it ends) an
 
 The play cursor is where the sound card is outputting the sound and the write cursor is ahead of the play cursor in order to avoid audio errors and weird noises.
 
-The DS buffer function `GetCurrentPosition()` is what is used to get such pointers, it receives the address of variables to store the pointers.
+The DS buffer method `GetCurrentPosition()` is what is used to get such pointers, it receives the address of variables to store the pointers.
 
 First we need to know what region is availabe to write withou problems, there are two cases for such, when the write and play cursors are on the same loop and when the write cursor is on the next loop thus being behind the play cursor.
 
@@ -450,15 +450,15 @@ X--|##########|--X
 
 ### Locking write regions
 
-After determining the regions to write, we must pass these on the DS buffer function `Lock()` where it will return us two pointers and two lengths.
+After determining the regions to write, we must pass these on the DS buffer method `Lock()` where it will return us two pointers and two lengths.
 
 The second pointer and length are non-zero if the wrap around case occurs.
 
-After the lock we are free to modify the sound buffer and then we must release the buffer with the `Unlock()` function to notify you're done, not doing so will break the audio or just be silent.
+After the lock we are free to modify the sound buffer and then we must release the buffer with the `Unlock()` method to notify you're done, not doing so will break the audio or just be silent.
 
 ### Play the audio
 
-Now we must call the DS buffer `play()` function to effectively play the audio data on the buffer.
+Now we must call the DS buffer `play()` method to effectively play the audio data on the buffer.
 
 # 22/01/2026
 
@@ -515,6 +515,127 @@ The exponent can be negative, indicating a lower decimal depth (e.g. 0.000000000
 
 ## DirectSound doesn't work anymore.
 
-So i've hit a wall which i think it is time to switch for XAudio2. So basically what's happening is that the program is passing _"invalid"_ arguments to the `Lock()` function, so we can't write on the buffer leaving a unsynch loop of the first buffer written.
+So i've hit a wall which i think it is time to switch for XAudio2. So basically what's happening is that the program is passing _"invalid"_ arguments to the `Lock()` method, so we can't write on the buffer leaving a unsync loop of the first buffer written.
 
-Tomorrow i'll start the studies on XAudio2.
+I'll start the studies on XAudio2 soon.
+
+# 03/02/2026
+
+## XAudio2 Interface
+
+**IXAudio2** is the interface for the XAudio2 API, it's capable to enumerate devices, configure global properties, create **voices** and monitor performance.
+
+Multiple instances can be created on a single client application, each object has its own audio thread with only debug settings shared, but you should not pass information between their **graphs**.
+
+## Voices
+
+Voices are the XAudio2 objects, they're the thing used to process, manipulate and play audio data.
+There are three types of voices:
+- **Source Voice:** The entry point for the audio processing workflow, it receives the audio data passed by the client, it can output to one or more submix or mastering voices.
+- **Submix Voice:** An intermediate step for performance improvement or effect processing, it can't receive data directly and the audio is only heard if submitted to a mastering voice.
+- **Mastering Voice:** Represents the output audio device, it can't receive data directly but from another voice type. This voice is the one that allows audio to be heard.
+
+All voices can:
+- Set the overall volume.
+- Apply digital signaling effects (f.e.: reverb).
+- Set per-channel volume.
+- Separate a mix to be sent to a destination voice or output device (via mastering voice), and change the number of channels if needed.
+
+## Audio Graph
+
+Audio Graph is a set of voices connected in a pipeline, it always start with a source voice and ends with a mastering voice, the simplest audio graph being `source -> mastering`.
+The graph can be changed dynamically in runtime altering its state.
+
+Any function call that affects the objects in a graph also changes the graph state, such as: Creating, destroying, starting, stopping and changing the destination of voices; enabling, disabling, modifying chains of effects; setting parameters on effects or on built-in SRCs, filters, volumes and mixers.
+
+XAudio2 can handle any sample rate or channel conversion with the following limitations:
+- Destination voices for a particular voice must have the same sample rate.
+- Effects can change the number of channels but not the sample rate.
+- A voice receiving from an effect chain must have the same channel count as the effect output.
+- Changes on dynamic graphs can't break the rules above.
+
+On input, source voices can read any format supported by XAudio2.
+
+On output, mastering voices can only produce PCM data, this data will always satisfy the restrictions above.
+
+## Callbacks
+
+Callbacks are function calls provided by XAudio2 to signal events happening on the audio thread.
+These calls interrupts the audio processing, so they must return as quickly as possible and shall not access permanent storage, make expensive API calls, synchronize with client code or require significant CPU usage.
+
+There are two types of callbacks: global and specific.
+
+Global callbacks return events on the global XAudio2 engine, these calls are implemented by means of a XAudio2 interface pointer provided by `RegisterForCallback()` method.
+
+Specific callbacks return events of an specific source voice, these calls are implemented by means of a source voice interface pointer provided by `CreateSourceVoice()` method.
+
+Both global and specific callbacks returns `void` instead of `HRESULT`.
+
+Weird, but i'll know how to use them later.
+
+# 09/02/2026
+
+## XAudio2 Audio Effect
+
+Audio Effects are objects that receive audio data and perform some operation (like adding reverb) before passing it on.
+
+### Effect Chain
+
+Any **Voice** can have a chain of audio effects, using an array of `XAUDIO2_EFFECT_DESCRIPTOR` structures to specify effect chains, each descriptor point to an effect object.
+Such objects must implement the Audio Processing Object (APO). XAudio2 uses the **XAPO** model.
+
+Effect chains can be modified dynamically: enabled, disabled, or have parameters change, without interrupting the audio.
+Whenever the effect graph changes, XAudio2 optimizes it to avoid unnecessary processing.
+
+After an effect is attach to a voice, XAudio2 handles it and no further calls should be done to it.
+
+An effect given to a voice's effect chain must operate at the same sample rate as the voice, the only aspect an effect can change is the number of channels. The field `OutputChannels` can be used to specify the channel count of the output.
+An effect chain will fail if any effects can't fulfill the requirements or if a effect receive a channel count it can't handle. Any effect calls that makes the chain to stop fulfilling the requirements will fail.
+
+XAudio2 has only 2 built-in effects, those being a (reverb)[https://learn.microsoft.com/en-us/windows/win32/api/xaudio2fx/nf-xaudio2fx-xaudio2createreverb] and a (volume meter)[https://learn.microsoft.com/en-us/windows/win32/api/xaudio2fx/nf-xaudio2fx-xaudio2createvolumemeter].
+
+## Custom effects
+
+Custom effects can be created with the **XAPO** API.
+
+## Streaming Audio Data
+
+Streaming is the process of keeping only a portion of audio data instead of loading an entire file.
+Streaming is accomplished through assynchronously reading data on a queue of disk buffer and then submitted to a voice.
+When the voice stop using that data the buffer is free to be read again. Looping through this buffer allows a large file to be played while only a portion of its data is loaded in.
+
+The code for streaming should be put on separate thread, where it can sleep while waiting for the long reading process.
+A callback is used to wake the thread when the audio is finished.
+
+## Operation Set
+
+An operation set is a set of methods grouped to be called at once. This means that you can put methods on a "queue" and apply all of them at the same time by calling the `CommitChanges()` method with the set identifier of a group (several XAudio2 receives an identifier as a parameter).
+The operation set is guaranteed to be sample-accurate, which means changes can occur in sync, like start multiple voices.
+
+If a method receives `XAUDIO2_COMMIT_NOW` instead of an identifier, the change is applied immediately. If the `CommitChanges()` receives `XAUDIO2_COMMIT_ALL` parameter, every pending set is applied.
+
+Some methods take effect immediately after a call, while others only take effect on the next audio pass even if they receive `XAUDIO2_COMMIT_NOW` or its group is committed, because of that method calls may not happen in the same order they've been called.
+
+All pending operation are committed when `StopEngine()` is called. When restarted XAudio2 returns to asynchronous mode.
+
+Operation sets are useful on those examples:
+- Starting multiple sounds simultaneosly.
+- Submitting a buffer to. setting parameters of and starting a voice.
+- Making large-scale changes to a graph.
+
+## Debugging Facilities
+
+You can set the level of debug logging at runtime in the `XAUDIO2_DEBUG_CONFIGURATION` structure and passing it to the `SetDebugConfiguration()` method.
+
+The debug information is retrieved through the Event Tracing of Windows.
+According to the documentation.
+
+# 13/02/2026
+
+I might have found out the problem with filling the buffer, but now with no errors the sound is _choking_.
+
+XAudio2 will wait a little longer.
+
+# 16/02/2026
+
+My sound is choking, so instead of trying to fill the buffer every frame, i will fill half by half, with at start the full buffer is filled.

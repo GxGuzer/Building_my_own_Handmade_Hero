@@ -1,8 +1,10 @@
 #include <Windows.h>
 #include <Xinput.h>
+#include <xaudio2.h>
 #include <dsound.h>
 #include <math.h>
 #include <iostream>
+#include <string>
 using namespace std;
 //TODO: Make a console "catch" for errors.
 
@@ -17,7 +19,14 @@ typedef unsigned long long ullong;
 
 bool Running = false;
 
-// RENDER
+#pragma region RENDER
+/*
+###################################################################################################
+#
+# RENDER
+#
+###################################################################################################
+*/
 
 // Bitmap variables and functions.
 struct BitmapBuffer {
@@ -35,6 +44,8 @@ struct ClientWindowDimension {
   int Width;
   int Height;
 };
+
+short PixelSoundSample;
 
 ClientWindowDimension GetClientWindowDimension(HWND WindowHandle) {
   ClientWindowDimension Result;
@@ -97,22 +108,35 @@ static void ResizeDIBSection(BitmapBuffer *Buffer, int Width, int Height) {
 static void DisplayBuffer(HDC DeviceContext, int WindowWidth, int WindowHeight, BitmapBuffer Buffer) {
   StretchDIBits(DeviceContext, 0, 0, WindowWidth, WindowHeight, 0, 0, Buffer.Width, Buffer.Height, Buffer.Memory, &Buffer.Info, DIB_RGB_COLORS, SRCCOPY);
 }
+#pragma endregion
 
-// SOUND
+#pragma region SOUND
+/*
+###################################################################################################
+#
+# SOUND
+#
+###################################################################################################
+*/
+
+#define NOSOUNDLIB 0
+#define XAUDIO2LIB 1
+#define DIRECTSOUNDLIB 2
+char SoundLib = NOSOUNDLIB;
 
 LPDIRECTSOUNDBUFFER GlobalSecondarySoundBuffer;
 
 typedef HRESULT WINAPI MyDirectSoundCreateFunction(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter);
 
 // Load the sound library and creates sound buffers if succeed.
-static void LoadSound(HWND WindowHandle, int BufferSize, int SamplesPerSecond) {
+static void LoadSoundLib(HWND WindowHandle, int BufferSize, int SamplesPerSecond) {
   // TODO: Make the first attempt of sound be with the modern sound API (XAudio2).
 
   DWORD Error;
 
-  HMODULE DirectSoundLibLoad = LoadLibrary("dsound.dll");
-  if(DirectSoundLibLoad) {
-    MyDirectSoundCreateFunction *MyDirectSoundCreate = (MyDirectSoundCreateFunction *)GetProcAddress(DirectSoundLibLoad, "DirectSoundCreate");
+  HMODULE SoundLibLoad = LoadLibrary("dsound.dll");
+  if(SoundLibLoad) {
+    MyDirectSoundCreateFunction *MyDirectSoundCreate = (MyDirectSoundCreateFunction *)GetProcAddress(SoundLibLoad, "DirectSoundCreate");
 
     LPDIRECTSOUND DirectSoundObject;
     if(SUCCEEDED(MyDirectSoundCreate(0, &DirectSoundObject, 0))) {
@@ -183,6 +207,7 @@ static void LoadSound(HWND WindowHandle, int BufferSize, int SamplesPerSecond) {
     int SamplePerSeconds;
     int BytesPerSample;
     int SoundBufferSize;
+    int SoundBufferSeconds;
     uint RunningSampleIndex;
     int ToneHertz;
     short ToneVolume;
@@ -198,20 +223,11 @@ static void FillSoundBuffer(SoundOutputConfig *SoundOutputConfig, DWORD WriteReg
   DWORD SecondWriteRegionLength;
   HRESULT LockResult = GlobalSecondarySoundBuffer->Lock(WriteRegionOffset, WriteRegionLength, &FirstWriteRegionPointer, &FirstWriteRegionLength, &SecondWriteRegionPointer, &SecondWriteRegionLength, 0); // Lock is returning an error: E_INVALIDARG
   if(SUCCEEDED(LockResult)) {
+
     short *SampleOutput = (short *)FirstWriteRegionPointer;
     DWORD FirstRegionSampleCounter = FirstWriteRegionLength / SoundOutputConfig->BytesPerSample;
-    for(DWORD SampleIndex = 0; SampleIndex < FirstRegionSampleCounter; SampleIndex++) {
-      float t = 2.0f*PI * (float)SoundOutputConfig->RunningSampleIndex / (float)SoundOutputConfig->WavePeriod;
-      float SineValue = sinf(t);
-      short SampleValue = (short)(SineValue * SoundOutputConfig->ToneVolume);
-      *SampleOutput++ = SampleValue;
-      *SampleOutput++ = SampleValue;
 
-      SoundOutputConfig->RunningSampleIndex++;
-    }
-    DWORD SecondRegionSampleCounter = SecondWriteRegionLength / SoundOutputConfig->BytesPerSample;
-    SampleOutput = (short *)SecondWriteRegionPointer;
-    for(DWORD SampleIndex = 0; SampleIndex < SecondWriteRegionLength; SampleIndex++) {
+    for(DWORD SampleIndex = 0; SampleIndex < FirstRegionSampleCounter; SampleIndex++) {
       float t = 2.0f*PI * (float)SoundOutputConfig->RunningSampleIndex / (float)SoundOutputConfig->WavePeriod;
       float SineValue = sinf(t);
       short SampleValue = (short)(SineValue * SoundOutputConfig->ToneVolume);
@@ -220,11 +236,35 @@ static void FillSoundBuffer(SoundOutputConfig *SoundOutputConfig, DWORD WriteReg
       
       SoundOutputConfig->RunningSampleIndex++;
     }
-    GlobalSecondarySoundBuffer->Unlock(&FirstWriteRegionPointer, FirstWriteRegionLength, &SecondWriteRegionPointer, SecondWriteRegionLength);
+
+    DWORD SecondRegionSampleCounter = SecondWriteRegionLength / SoundOutputConfig->BytesPerSample;
+    SampleOutput = (short *)SecondWriteRegionPointer;
+    
+    for(DWORD SampleIndex = 0; SampleIndex < SecondRegionSampleCounter; SampleIndex++) {
+      float t = 2.0f*PI * (float)SoundOutputConfig->RunningSampleIndex / (float)SoundOutputConfig->WavePeriod;
+      float SineValue = sinf(t);
+      short SampleValue = (short)(SineValue * SoundOutputConfig->ToneVolume);
+      *SampleOutput++ = SampleValue;
+      *SampleOutput++ = SampleValue;
+      
+      SoundOutputConfig->RunningSampleIndex++;
+    }
+    OutputDebugString("Filled buffer.\n");
+    GlobalSecondarySoundBuffer->Unlock(FirstWriteRegionPointer, FirstWriteRegionLength, SecondWriteRegionPointer, SecondWriteRegionLength);
+  }else {
+    OutputDebugString("Buffer failed.\n");
   }
 }
+#pragma endregion
 
-// INPUT
+#pragma region INPUT
+/*
+###################################################################################################
+#
+# INPUT
+#
+###################################################################################################
+*/
 
 DWORD WINAPI ThereAreNoXInputLib(DWORD dwUserIndex, XINPUT_STATE* pState) {
   return ERROR_DEVICE_NOT_CONNECTED;
@@ -259,95 +299,103 @@ struct {
   bool Down;
   bool Right;
 } ScreenState;
+#pragma endregion
 
-// WINDOW
+#pragma region WINDOW
+/*
+###################################################################################################
+#
+# WINDOW
+#
+###################################################################################################
+*/
 
 // Window procedure to messages.
 LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam) {
   LRESULT Result = 0;
   switch (Message)
   {
-  case WM_SIZE: 
-  {
-    InvalidateRect(Window, NULL, true);
-  }
-  break;
+    case WM_SIZE: 
+    {
+      InvalidateRect(Window, NULL, true);
+    }
+    break;
 
-  case WM_DESTROY:
-  {
-    // TODO: Error handle with window recreation?
-    PostQuitMessage(0); 
-  }
-  break;
-  
-  case WM_PAINT:
-  {
-    PAINTSTRUCT Paint;
-    HDC DeviceContext = BeginPaint(Window, &Paint);
+    case WM_DESTROY:
+    {
+      // TODO: Error handle with window recreation?
+      PostQuitMessage(0); 
+    }
+    break;
+    
+    case WM_PAINT:
+    {
+      PAINTSTRUCT Paint;
+      HDC DeviceContext = BeginPaint(Window, &Paint);
 
-    ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(Window);
-    DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer);
+      ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(Window);
+      DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer);
 
-    EndPaint(Window, &Paint);
-  }
-  break;
+      EndPaint(Window, &Paint);
+    }
+    break;
 
-  case WM_CLOSE:
-  {
-     /*
-    if(MessageBox(Window, "Get Out?", "Close the game?", MB_OKCANCEL) == IDOK) {
+    case WM_CLOSE:
+    {
+      /*
+      if(MessageBox(Window, "Get Out?", "Close the game?", MB_OKCANCEL) == IDOK) {
+        DestroyWindow(Window);
+      }*/ 
       DestroyWindow(Window);
-    }*/ 
-    DestroyWindow(Window);
-    //cout << "Close" << endl;
-  }
-  break;
+      //cout << "Close" << endl;
+    }
+    break;
 
-  case WM_KEYDOWN: case WM_KEYUP:
-  {
-    uint VirtualKeyCode = WParam;
-    bool IsPressed = !(LParam & (1 << 31));
-    if(IsPressed) {
-      switch (VirtualKeyCode) {
-      case 'W':
-      {
-        ScreenState.Up = true;
-      }
-      break;
-      
-      case 'A':
-      {
-        ScreenState.Left = true;
-      }
-      break;
-      
-      case 'S':
-      {
-        ScreenState.Down = true;
-      }
-      break;
-      
-      case 'D':
-      {
-        ScreenState.Right = true;
-      }
-      break;
+    case WM_KEYDOWN: case WM_KEYUP:
+    {
+      uint VirtualKeyCode = WParam;
+      bool IsPressed = !(LParam & (1 << 31));
+      if(IsPressed) {
+        switch (VirtualKeyCode) {
+          case 'W':
+          {
+            ScreenState.Up = true;
+          }
+          break;
+          
+          case 'A':
+          {
+            ScreenState.Left = true;
+          }
+          break;
+          
+          case 'S':
+          {
+            ScreenState.Down = true;
+          }
+          break;
+          
+          case 'D':
+          {
+            ScreenState.Right = true;
+          }
+          break;
 
-      case VK_ESCAPE:
-      {
-        Running = false;
-      }
-      break;
+          case VK_ESCAPE:
+          {
+            Running = false;
+          }
+          break;
+        }
       }
     }
-  }
-  break;
+    break;
 
-  default:
-  {
-    Result = DefWindowProc(Window, Message, WParam, LParam);
-  }
-  break;
+    default:
+    {
+      Result = DefWindowProc(Window, Message, WParam, LParam);
+    }
+    break;
   }
   return Result;
 }
@@ -386,16 +434,19 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	SoundOutputConfig SoundOutput = {};
 	SoundOutput.SamplePerSeconds = 48000;
 	SoundOutput.BytesPerSample = sizeof(short) * 2;
-	SoundOutput.SoundBufferSize = SoundOutput.SamplePerSeconds * SoundOutput.BytesPerSample;
+  SoundOutput.SoundBufferSeconds = 1;
+	SoundOutput.SoundBufferSize = (SoundOutput.SamplePerSeconds * SoundOutput.BytesPerSample) * SoundOutput.SoundBufferSeconds;
 	SoundOutput.RunningSampleIndex = 0;
 	SoundOutput.ToneHertz = 261;
 	SoundOutput.ToneVolume = 4000;
 	SoundOutput.WavePeriod = SoundOutput.SamplePerSeconds / SoundOutput.ToneHertz;
 	SoundOutput.SoundIsPlaying = false;
+  char RegionWritten = 0; // 0 = NONE; 1 = 1ST HALF; 2 = 2ND HALF.
 
   // Library loads.
   LoadXInputLib();
-  LoadSound(HandmadeHeroWindow, SoundOutput.SoundBufferSize, SoundOutput.SamplePerSeconds);
+  LoadSoundLib(HandmadeHeroWindow, SoundOutput.SoundBufferSize, SoundOutput.SamplePerSeconds);
+  FillSoundBuffer(&SoundOutput, 0, SoundOutput.SoundBufferSize);
 
   // Show window.
   ResizeDIBSection(&GlobalBackbuffer, 1208, 720);
@@ -444,22 +495,19 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
     // Procedure to output the program.
 		HRESULT GetBufferPositionResult = GlobalSecondarySoundBuffer->GetCurrentPosition(&CurrentSoundPlayCursor, &CurrentSoundWriteCursor);
     if(SUCCEEDED(GetBufferPositionResult)) {
-      DWORD WriteRegionOffset = (SoundOutput.RunningSampleIndex * SoundOutput.BytesPerSample) % SoundOutput.SoundBufferSize;
-      DWORD WriteRegionLength;
-			
-      if(WriteRegionOffset == CurrentSoundPlayCursor) {
-        if(SoundOutput.SoundIsPlaying) {
-          WriteRegionLength = 0;
-        }else {
-          WriteRegionLength = SoundOutput.SoundBufferSize;
-        }
-      }else if(WriteRegionOffset >= CurrentSoundPlayCursor) {
-				WriteRegionLength = SoundOutput.SoundBufferSize - WriteRegionOffset;
-				WriteRegionLength += CurrentSoundPlayCursor;
-			}else {
-				WriteRegionLength = CurrentSoundPlayCursor - WriteRegionOffset;
-			}
-			FillSoundBuffer(&SoundOutput, WriteRegionOffset, WriteRegionLength);
+      // TODO: Try to write from the CurrentSoundWriteCursor to the CurrentSoundPlayCursor and only repeating after the previous written region is done.
+      DWORD WriteRegionOffset = 0;
+      DWORD WriteRegionLength = SoundOutput.SoundBufferSize / 2;
+      
+      if(CurrentSoundPlayCursor > (SoundOutput.SoundBufferSize / 2) && RegionWritten != 1) {
+        WriteRegionOffset = 0;
+        RegionWritten = 1;
+        FillSoundBuffer(&SoundOutput, WriteRegionOffset, WriteRegionLength);
+      }else if(CurrentSoundPlayCursor < (SoundOutput.SoundBufferSize / 2) && RegionWritten == 1) {
+        WriteRegionOffset = SoundOutput.SoundBufferSize / 2;
+        RegionWritten = 2;
+        FillSoundBuffer(&SoundOutput, WriteRegionOffset, WriteRegionLength);
+      }
     }
 
     if(!SoundOutput.SoundIsPlaying) {
@@ -493,3 +541,4 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 
   return 0;
 }
+#pragma endregion

@@ -4,9 +4,9 @@
 #include <dsound.h>
 #include <math.h>
 #include <iostream>
-#include <string>
 using namespace std;
 //TODO: Make a console "catch" for errors.
+//TODO: Make a debug console with iostream.
 
 #define PI 3.14159265359f
 
@@ -206,8 +206,9 @@ static void LoadSoundLib(HWND WindowHandle, int BufferSize, int SamplesPerSecond
   struct SoundOutputConfig {
     int SamplePerSeconds;
     int BytesPerSample;
-    int SoundBufferSize;
+    int BytesPerSeconds;
     int SoundBufferSeconds;
+    int SoundBufferSize;
     uint RunningSampleIndex;
     int ToneHertz;
     short ToneVolume;
@@ -249,6 +250,7 @@ static void FillSoundBuffer(SoundOutputConfig *SoundOutputConfig, DWORD WriteReg
       
       SoundOutputConfig->RunningSampleIndex++;
     }
+
     OutputDebugString("Filled buffer.\n");
     GlobalSecondarySoundBuffer->Unlock(FirstWriteRegionPointer, FirstWriteRegionLength, SecondWriteRegionPointer, SecondWriteRegionLength);
   }else {
@@ -434,19 +436,25 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	SoundOutputConfig SoundOutput = {};
 	SoundOutput.SamplePerSeconds = 48000;
 	SoundOutput.BytesPerSample = sizeof(short) * 2;
+  SoundOutput.BytesPerSeconds = SoundOutput.SamplePerSeconds * SoundOutput.BytesPerSample;
   SoundOutput.SoundBufferSeconds = 1;
-	SoundOutput.SoundBufferSize = (SoundOutput.SamplePerSeconds * SoundOutput.BytesPerSample) * SoundOutput.SoundBufferSeconds;
+	SoundOutput.SoundBufferSize = SoundOutput.BytesPerSeconds * SoundOutput.SoundBufferSeconds;
 	SoundOutput.RunningSampleIndex = 0;
 	SoundOutput.ToneHertz = 261;
 	SoundOutput.ToneVolume = 4000;
 	SoundOutput.WavePeriod = SoundOutput.SamplePerSeconds / SoundOutput.ToneHertz;
 	SoundOutput.SoundIsPlaying = false;
-  char RegionWritten = 0; // 0 = NONE; 1 = 1ST HALF; 2 = 2ND HALF.
+  int SoundBufferFifthyMiliseconds = (SoundOutput.BytesPerSeconds / 20);
+  int SoundChunkCount = SoundOutput.SoundBufferSize / SoundBufferFifthyMiliseconds;
+  int CurrentChunkIndex;
+  int LastWrittenChunk;
 
   // Library loads.
   LoadXInputLib();
   LoadSoundLib(HandmadeHeroWindow, SoundOutput.SoundBufferSize, SoundOutput.SamplePerSeconds);
-  FillSoundBuffer(&SoundOutput, 0, SoundOutput.SoundBufferSize);
+  FillSoundBuffer(&SoundOutput, 0, SoundBufferFifthyMiliseconds);
+  CurrentChunkIndex = 0;
+  LastWrittenChunk = 0;
 
   // Show window.
   ResizeDIBSection(&GlobalBackbuffer, 1208, 720);
@@ -496,17 +504,16 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		HRESULT GetBufferPositionResult = GlobalSecondarySoundBuffer->GetCurrentPosition(&CurrentSoundPlayCursor, &CurrentSoundWriteCursor);
     if(SUCCEEDED(GetBufferPositionResult)) {
       // TODO: Try to write from the CurrentSoundWriteCursor to the CurrentSoundPlayCursor and only repeating after the previous written region is done.
-      DWORD WriteRegionOffset = 0;
-      DWORD WriteRegionLength = SoundOutput.SoundBufferSize / 2;
+      CurrentChunkIndex = CurrentSoundWriteCursor / SoundBufferFifthyMiliseconds;
+      DWORD WriteRegionOffset;
+      DWORD WriteRegionLength = SoundBufferFifthyMiliseconds;
+
+      DWORD ChunkToWrite = (CurrentChunkIndex + 1) % SoundChunkCount;
       
-      if(CurrentSoundPlayCursor > (SoundOutput.SoundBufferSize / 2) && RegionWritten != 1) {
-        WriteRegionOffset = 0;
-        RegionWritten = 1;
+      if(ChunkToWrite != LastWrittenChunk) {
+        WriteRegionOffset = ChunkToWrite * SoundBufferFifthyMiliseconds;
         FillSoundBuffer(&SoundOutput, WriteRegionOffset, WriteRegionLength);
-      }else if(CurrentSoundPlayCursor < (SoundOutput.SoundBufferSize / 2) && RegionWritten == 1) {
-        WriteRegionOffset = SoundOutput.SoundBufferSize / 2;
-        RegionWritten = 2;
-        FillSoundBuffer(&SoundOutput, WriteRegionOffset, WriteRegionLength);
+        LastWrittenChunk = ChunkToWrite;
       }
     }
 

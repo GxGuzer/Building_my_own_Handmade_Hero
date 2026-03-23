@@ -639,3 +639,21 @@ XAudio2 will wait a little longer.
 # 16/02/2026
 
 My sound is choking, so instead of trying to fill the buffer every frame, i will fill half by half, with at start the full buffer is filled.
+
+X--P--W--O--X wait.
+
+X--P--O--W--X write.
+
+X--O--P--W--X wait.
+
+X--W--P--O--X write.
+
+X--W--O--P--X wait.
+
+X--O--W--P--X write.
+
+# 23/03/2026
+
+After understanding what modulo `%` does, i finally got a low latency (50ms) chunk based buffer working.
+
+XAudio2 will reappear later on the project.

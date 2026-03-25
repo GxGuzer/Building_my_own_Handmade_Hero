@@ -251,10 +251,10 @@ static void FillSoundBuffer(SoundOutputConfig *SoundOutputConfig, DWORD WriteReg
       SoundOutputConfig->RunningSampleIndex++;
     }
 
-    OutputDebugString("Filled buffer.\n");
+    // OutputDebugString("Filled buffer.\n");
     GlobalSecondarySoundBuffer->Unlock(FirstWriteRegionPointer, FirstWriteRegionLength, SecondWriteRegionPointer, SecondWriteRegionLength);
   }else {
-    OutputDebugString("Buffer failed.\n");
+    // OutputDebugString("Buffer failed.\n");
   }
 }
 #pragma endregion
@@ -425,6 +425,17 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
   }else {
     Running = true;
   }
+  
+  // Performance counter.
+  LARGE_INTEGER PerformanceFrequency;
+  QueryPerformanceFrequency(&PerformanceFrequency);
+  llong CountFrequency = PerformanceFrequency.QuadPart;
+
+  llong LastCycleCount = __rdtsc();
+
+  LARGE_INTEGER LastCount;
+  QueryPerformanceCounter(&LastCount);
+  // "CycleCount" refers to wxact CPU cycles, while performance count is more about real time.
 
   // Stuff for a simple animation.
   int XOffset = 0;
@@ -503,7 +514,6 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
     // Procedure to output the program.
 		HRESULT GetBufferPositionResult = GlobalSecondarySoundBuffer->GetCurrentPosition(&CurrentSoundPlayCursor, &CurrentSoundWriteCursor);
     if(SUCCEEDED(GetBufferPositionResult)) {
-      // TODO: Try to write from the CurrentSoundWriteCursor to the CurrentSoundPlayCursor and only repeating after the previous written region is done.
       CurrentChunkIndex = CurrentSoundWriteCursor / SoundBufferFifthyMiliseconds;
       DWORD WriteRegionOffset;
       DWORD WriteRegionLength = SoundBufferFifthyMiliseconds;
@@ -544,6 +554,24 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
     ScreenState.Left = false;
     ScreenState.Down = false;
     ScreenState.Right = false;
+
+    // Performance counting and display.
+    llong EndCycleCount = __rdtsc();
+    llong CyclesPassed = EndCycleCount - LastCycleCount;
+    int MegaCyclesPerFrame = (int)(CyclesPassed / (1000 * 1000));
+
+    LARGE_INTEGER EndCount;
+    QueryPerformanceCounter(&EndCount);
+    llong CountPassed = EndCount.QuadPart - LastCount.QuadPart;
+    int MSPerFrame = (int)((1000 * CountPassed) / CountFrequency);
+    int FPS = (int)(CountFrequency / CountPassed);
+    
+    char StringBuffer[256];
+    wsprintf(StringBuffer, "Render Time: %dms. FPS: %d. CPU Cycles: %dM.\n", MSPerFrame, FPS, MegaCyclesPerFrame); // WARNNG: This type of string outputting is problematic, it assumes a long enough buffer and the formats may access what it shouldn't on the stack.
+    OutputDebugString(StringBuffer);
+    
+    LastCycleCount = EndCycleCount;
+    LastCount = EndCount;
   }
 
   return 0;

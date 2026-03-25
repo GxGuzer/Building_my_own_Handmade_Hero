@@ -657,3 +657,47 @@ X--O--W--P--X write.
 After understanding what modulo `%` does, i finally got a low latency (50ms) chunk based buffer working.
 
 XAudio2 will reappear later on the project.
+
+# 24/03/2026
+
+## Read-Time Stamp Counter
+
+Some CPUs have a counter that count up by one every cycle (not instruction).
+
+Intel's instruction `RDTSC` retrieve the value of this counter and it is useful to know the timing of your program, however this is not perfect since the register will store the cycle of whatever is happening on the CPU so if the CPU swaps threads in the middle of your program the counter will still go up, therefore the difference of the beginning RDTSC and ending RDTSC (thus duration) will always be different.
+
+Some operational systems actually stores the RDTSC of your thread so you can know a more accurate timing of your process. But it's not all OSes that have this feature.
+
+## QueryPerformanceCounter()
+
+`RDTSC` does represent a precise real time counting because many CPUs have variable clock timing in order to save battery, prevent heat, etc. and also as discussed it doesn't represents the timing of the process view.
+
+The function `QueryPerformanceCounter()` returns a not perfectly accurate but accurate enough clock timing of the process, that is more intuitive to real time measurement.
+
+## union
+
+`union` is a data structure where it is listed other types of data that sits on the same space of memory therefore relating to the same thing, for example:
+```cpp
+union Union {
+  char 8bit;
+  short 16bit;
+  int 32bit;
+} ExampleUnion;
+```
+If `ExampleUnion` was filled we could access its 8 bits through a method call `ExampleUnion.8bit` or all 32 bits `ExampleUnion.32bit`, the `8bit` method will have the same value as the first 8 bits of the `32bit` method because they sit on the same place on memory.
+
+# 25/03/2026
+
+## Acquiring performance rate.
+
+Using the functions `QueryPerformanceCounter()` and `QueryPerformanceFrequency()` and a little dimension a analysis it is possible to output performance data like how long it took for the frame to render and how many FPS the program is performing.
+
+For it we need two counters and the frequency.
+
+We request the counter at the beginning of the frame and again at the end, remember to cache them, and then calculate the difference, that will say how many cycles elapsed during the execution of that frame. The frequency retrieved from `QueryPerformanceFrequency()` returns the real time of a cycle and its stay constant, so we only need to retrieve it at initialization.
+
+## wsprintf() danger.
+
+`wsprintf()` allow us to perform a string format to output variable values with `OutputDebugString()`, requiring a buffer where it will put the new string, however if the buffer is smaller than the output, the function will keep overwriting the characters and if there are more formats than what've been specified the function will read what it shouldn't from the stack.
+
+This is fine for a debug profile but absolutely not for shipping.

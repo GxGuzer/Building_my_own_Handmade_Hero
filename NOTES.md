@@ -701,3 +701,44 @@ We request the counter at the beginning of the frame and again at the end, remem
 `wsprintf()` allow us to perform a string format to output variable values with `OutputDebugString()`, requiring a buffer where it will put the new string, however if the buffer is smaller than the output, the function will keep overwriting the characters and if there are more formats than what've been specified the function will read what it shouldn't from the stack.
 
 This is fine for a debug profile but absolutely not for shipping.
+
+# 03/04/2026
+
+## Platform independent layer
+
+All code until now is written for Win32 platform, which isn't the code that will be shipable.
+There's still a ton of stuff to do for the game and most of it will be independent of the user platform for maximum compatibility. What i've done with Win32 so far is just the bare minimum to get something running on Windows.
+
+## Old cross-platform method (preprocessor if statement)
+
+A macro is set with values that would change according to the platform, a preprocessor code for that would look like this:
+```cpp
+#if _WIN32
+// Win32 line
+#elif _LINUX
+// Linux line
+#else
+// You wouldn't use an #else for platform checks, this is just and example of the preprocessor if statement.
+#endif // This closes the preprocessor if statement, #ifs can be nested and you can have multiple #elifs.
+```
+
+This method works by when an `#if` pass it will inject the corresponding code. You can think that the preprocessor is a text editor editing your code according to set specifications.
+
+### Preprocessor method warning
+
+Using the preprocessor `#if` to make your code run on multiple platforms mean that your code will have the exact control flow for every platform, and this becomes problematic where different platforms have better different ways to handle the same stuff. For example: one platform might be better at loading resources with another thread, other with overlap I/O, other with mapped files, and etc.
+
+As you use the same control flow across platforms, one may be really optimized while other might be strugling.
+
+## Common way to carry out a cross-platform layer.
+
+You would have a source code file for the specific platform with the specifics function calls to get the program first up and running, for example: `win32_main.cpp` and `linux_main.cpp`. Then you would have a header file (e.g., `handmade.h`) that would hold the definitions for each platform, then the actual game code would be written in another file (e.g., `main_handmade.cpp`) which would have functions calls that will be redirected to the proper platform function through the header file.
+
+This method can be broken down in two ways: multi-file builds and unity builds. Unity build has nothing to do with the game engine Unity, and the difference between these ways is that one compiles multiple files and the other compiles just one translation unit.
+
+### Methods of unity builds.
+
+1. **OS virtualization:** On this method you would make every necessary function to be redirected by the header. and wrap around the results and variables, so you would like write on a *"universal OS"* while the actual platform specific processes reached by the header does the work.
+For example: You would have the functions `OpenWindow()`, `WriteSoundBuffer()`, and `DrawWindow()`. Then those functions would be pointed to the actual platform function by the header. As for parameter and return values, you would declared an undefined struct on the header and defined that struct on the platform specific file with the necessary variables.
+
+2. **Game servicing the OS:** On this method you would wrap the only necessary and useful code for the that would be just image to render, audio to play, input results, file retrieval, and network packets. While all the rest (window handle, messages procedure, etc.) would be left to the platform specific source code.

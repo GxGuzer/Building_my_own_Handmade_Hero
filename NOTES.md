@@ -742,3 +742,7 @@ This method can be broken down in two ways: multi-file builds and unity builds. 
 For example: You would have the functions `OpenWindow()`, `WriteSoundBuffer()`, and `DrawWindow()`. Then those functions would be pointed to the actual platform function by the header. As for parameter and return values, you would declared an undefined struct on the header and defined that struct on the platform specific file with the necessary variables.
 
 2. **Game servicing the OS:** On this method you would wrap the only necessary and useful code for the that would be just image to render, audio to play, input results, file retrieval, and network packets. While all the rest (window handle, messages procedure, etc.) would be left to the platform specific source code.
+
+# 08/04/2026
+
+The platform dependent code can be shipped to any game.

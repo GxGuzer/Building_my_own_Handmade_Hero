@@ -537,7 +537,7 @@ There are three types of voices:
 
 All voices can:
 - Set the overall volume.
-- Apply digital signaling effects (f.e.: reverb).
+- Apply digital signaling effects f.e. (for example) reverb.
 - Set per-channel volume.
 - Separate a mix to be sent to a destination voice or output device (via mastering voice), and change the number of channels if needed.
 
@@ -739,10 +739,31 @@ This method can be broken down in two ways: multi-file builds and unity builds. 
 ### Methods of unity builds.
 
 1. **OS virtualization:** On this method you would make every necessary function to be redirected by the header. and wrap around the results and variables, so you would like write on a *"universal OS"* while the actual platform specific processes reached by the header does the work.
-For example: You would have the functions `OpenWindow()`, `WriteSoundBuffer()`, and `DrawWindow()`. Then those functions would be pointed to the actual platform function by the header. As for parameter and return values, you would declared an undefined struct on the header and defined that struct on the platform specific file with the necessary variables.
+For example: You would have the functions `OpenWindow()`, `WriteSoundBuffer()`, and `DrawWindow()`. Then those functions would be pointed to the actual platform function by the header. As for parameter and return values, you would declared an undefined struct on the header and define that struct on the platform specific file with the necessary variables.
 
 2. **Game servicing the OS:** On this method you would wrap the only necessary and useful code for the that would be just image to render, audio to play, input results, file retrieval, and network packets. While all the rest (window handle, messages procedure, etc.) would be left to the platform specific source code.
 
 # 08/04/2026
 
 The platform dependent code can be shipped to any game.
+
+# 29/05/2026
+
+## Input-Frame delay
+
+When polling the control input for a game, the user is actually reacting to a previous computed frame, in other words, we are always computing an input of at least one frame behind.
+
+Also, depending on the user actions, he might press a button between frames, like at first it's released, then pressed, and then released again, within the same frame. We might want to differentiate a press to a hold, and it might be impossible for a player to perceive a button press that is less than 1/60 of a second, so our time to check presses will be on multiple frames most of the time.
+Depending on the polling frequency of the gamepad, we have to decide which events to save for next frame computation, ideally we must never miss a button **press**.
+
+## Joystick polling
+
+Joystick have a polling frequency in which we receive a snapshot of the joystick at that given moment, it is most faster than our frame rate, thus we'll have various samples of stick states for a frame.
+
+We must decide how to evaluate the motion of the stick within a frame, because we may get the wrong idea of the movement, f.e. if the stick is fully drag to the right, then released within a frame, if then we average it out, the computation will result on a half-drag of the stick, or maybe the full-drag started at half a frame and ended half of the next frame, the average of the two frames will be a half-drag of the stick.
+
+I'll copy Casey's code for the gamepad, but won't test it because i don't have one.
+
+**All non-tested code can be identified by the `snake_case` type of coding**
+
+I might experiment on how to pull all keys from a keyboard, so any key is useable (good for custom keybinds).

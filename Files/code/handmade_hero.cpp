@@ -1,20 +1,15 @@
 #include "handmade.h"
 
-struct {
-	short ToneVolume = 4000;
-	int ToneHertz = 261;
-} SineParam;
-
-void SoundOutput(SoundBuffer *SoundBuffer) {
+void SoundOutput(SoundBuffer *SoundBuffer, int ToneHertz, short ToneVolume) {
 	short *SampleOut = SoundBuffer->SampleOut;
 
 	static float t = 0;
-	int WavePeriod = SoundBuffer->SamplesPerSecond / SineParam.ToneHertz;
+	int WavePeriod = SoundBuffer->SamplesPerSecond / ToneHertz;
 
 	if(SoundBuffer->ReadyToWrite) {
 		for(int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; SampleIndex++) {
 			float SineValue = sinf(t);
-			short SampleValue = (short)(SineValue * SineParam.ToneVolume);
+			short SampleValue = (short)(SineValue * ToneVolume);
 			*SampleOut++ = SampleValue;
 			*SampleOut++ = SampleValue;
 
@@ -45,15 +40,62 @@ void RenderGrad(BitmapBuffer *Buffer, int XOffset, int YOffset) {
 	}
 }
 
-static void GameMain(BitmapBuffer *Buffer, SoundBuffer *SoundBuffer, gamepad_input *input_) {
-	static int XOffset = 0;
-	static int YOffset = 0;
+static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *SoundBuffer, GameKeyboardState *KeyState, gamepad_input *input_) {
+	Assert(sizeof(GameState) <= Memory->PermanentSize);
+
+	GameState *State = (GameState *)Memory->PermanentPtr;
+	if(!Memory->Initialized) {
+		State->Render.Speed = 4;
+		State->Sound.ToneVolume = 4000;
+		State->Sound.ToneHertz = 261;
+		Memory->Initialized = true;
+	}
+
+	if(KeyState->Pressed) {
+		switch (KeyState->VirtualKeycode) {
+			case 'W':
+			{
+				State->Render.YOffset -= State->Render.Speed;
+				if(State->Sound.ToneVolume < 40000) {
+					State->Sound.ToneVolume++;
+				}
+			}
+			break;
+
+			case 'A':
+			{
+				State->Render.XOffset -= State->Render.Speed;
+				if(State->Sound.ToneHertz > 65) {
+					State->Sound.ToneHertz--;
+				}
+			}
+			break;
+
+			case 'S':
+			{
+				State->Render.YOffset += State->Render.Speed;
+				if(State->Sound.ToneVolume > 400) {
+					State->Sound.ToneVolume--;
+				}
+			}
+			break;
+
+			case 'D':
+			{
+				State->Render.XOffset += State->Render.Speed;
+				if(State->Sound.ToneHertz < 1046) {
+					State->Sound.ToneHertz++;
+				}
+			}
+			break;
+		}
+	}
 	
 	gamepad_controller_input *input_0 = &input_->gamepad_controller[0];
 	if(input_0->is_analog) {
 		// Analog tuning.
-		SineParam.ToneHertz = 261 + (int)(128.0f * input_0->stick_end_x);
-		YOffset += (int)(4.0f * input_0->stick_end_y);
+		State->Sound.ToneHertz = 261 + (int)(128.0f * input_0->stick_end_x);
+		State->Render.YOffset += (int)(4.0f * input_0->stick_end_y);
 	}else {
 		// Digital tuning.
 	}
@@ -61,9 +103,9 @@ static void GameMain(BitmapBuffer *Buffer, SoundBuffer *SoundBuffer, gamepad_inp
 	// Input.AButtonEndedDown;
 	// Input.AButtonTransitionCount;
 	if(input_0->button_a.ended_down) {
-		XOffset++;
+		State->Render.XOffset++;
 	}
 
-	SoundOutput(SoundBuffer);
-	RenderGrad(Buffer, XOffset, YOffset);
+	RenderGrad(Buffer, State->Render.XOffset, State->Render.YOffset);
+	SoundOutput(SoundBuffer, State->Sound.ToneHertz, State->Sound.ToneVolume);
 }

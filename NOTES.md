@@ -767,3 +767,21 @@ I'll copy Casey's code for the gamepad, but won't test it because i don't have o
 **All non-tested code can be identified by the `snake_case` type of coding**
 
 I might experiment on how to pull all keys from a keyboard, so any key is useable (good for custom keybinds).
+
+# 24/06/2026
+
+## Memory allocation
+
+A game needs memory of course, and a lot of games does dynamic allocation, which functions for allocating and deallocating memory are defined every time memory is needed.
+The problem with this is that memory allocation is always prone to error, and games assume that the user will always have memory available, so every extra allocation is more risk to crashing. Games can be made with a way to handle every exception, this way of programming is not a bad way, is just risky.
+
+But there is also a flat partition of allocationg, which just a big chunk of memory is allocated at once, and then that chunk is partitionized to hold whatever the game needs. This is what we will be doing.
+
+To avoid bugs, the allocated memory must be initialized by zero, if the platform layer doesn't do it, you must do it.
+
+# 29/06/2026
+
+## Assertions
+
+Assertion is a check to something in a program, that halts its process if it evaluates to false.
+It's used for debugging purposes, the program will run normally if the assertion evaluates to true.

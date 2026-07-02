@@ -47,8 +47,6 @@ struct ClientWindowDimension {
 	int Height;
 };
 
-short PixelSoundSample;
-
 ClientWindowDimension GetClientWindowDimension(HWND WindowHandle) {
 	ClientWindowDimension Result;
 
@@ -279,6 +277,15 @@ static void FillSoundBuffer(SoundOutputConfig *SoundOutputConfig, DWORD WriteReg
 ###################################################################################################
 */
 
+struct KeyboardInputInfo {
+	uint VirtualKeycode;
+	bool WithAlt;
+	bool WasPressed;
+	bool IsPressed;
+};
+
+static KeyboardInputInfo KeyInput;
+
 DWORD WINAPI ThereAreNoXInputLib(DWORD dwUserIndex, XINPUT_STATE* pState) {
 	return ERROR_DEVICE_NOT_CONNECTED;
 }
@@ -361,42 +368,14 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
 		}
 		break;
 
-		case WM_KEYDOWN: case WM_KEYUP:
+		case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSKEYDOWN:
 		{
-			uint VirtualKeyCode = WParam;
-			bool IsPressed = !(LParam & (1 << 31));
-			if(IsPressed) {
-				switch (VirtualKeyCode) {
-					case 'W':
-					{
-						
-					}
-					break;
-					
-					case 'A':
-					{
-						
-					}
-					break;
-					
-					case 'S':
-					{
-						
-					}
-					break;
-					
-					case 'D':
-					{
-						
-					}
-					break;
-
-					case VK_ESCAPE:
-					{
-						Running = false;
-					}
-					break;
-				}
+			KeyInput.VirtualKeycode = WParam;
+			KeyInput.WithAlt = (LParam & (1 << 29));
+			KeyInput.WasPressed = (LParam & (1 << 30));
+			KeyInput.IsPressed = !(LParam & (1 << 31));
+			if(KeyInput.IsPressed && (KeyInput.VirtualKeycode == VK_ESCAPE)) {
+				Running = false;
 			}
 		}
 		break;
@@ -435,12 +414,12 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 
 	HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 100, 100, 640, 480, 0, 0, Instance, 0);
 
-	if(HandmadeHeroWindow == NULL) {
+	if(HandmadeHeroWindow) {
+		Running = true;
+	}else {
 		DWORD Error = GetLastError();
 		//cout << "Window created null or with error: " << Error << endl;
 		return 0;
-	}else {
-		Running = true;
 	}
 
 	// Performance counter.
@@ -454,6 +433,15 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	QueryPerformanceCounter(&LastCount);
 	// "CycleCount" refers to exact CPU cycles, while performance count is more about real time.
 
+	// Memory setup.
+	LPVOID BaseAddress = (LPVOID)(2 TB); // TODO: Remove on final build.
+	GameMemory GameMemory = {};
+	GameMemory.PermanentSize = 64 MB;
+	GameMemory.VolatileSize = 4 GB;
+	ullong TotalSize = GameMemory.PermanentSize + GameMemory.VolatileSize;
+	GameMemory.PermanentPtr = VirtualAlloc(BaseAddress, TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	GameMemory.VolatilePtr = ((uchar *)GameMemory.PermanentPtr + GameMemory.PermanentSize);
+	
 	// Render setup.
 	ResizeDIBSection(&GlobalBackbuffer, 1208, 720);
 	ShowWindow(HandmadeHeroWindow, ComandShow);
@@ -480,9 +468,16 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	// Input setup.
 	LoadXInputLib();
 	
-	gamepad_input input_[2];
+	gamepad_input input_[2] = {0, 0};
 	gamepad_input *new_input = &input_[0];
 	gamepad_input *old_input = &input_[1];
+	
+	// Allocation safety check (perhaps put memory allocation here?).
+	if(SoundBufferPointer && GameMemory.PermanentPtr && GameMemory.VolatilePtr) {
+		Running = true;
+	}else {
+		// TODO: Error catch?
+	}
 
 	// While loop controled by a bool to keep the program running, because `PeekMessage` gets outta the loop when there are no messages.
 	while(Running) {
@@ -497,54 +492,12 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 			DispatchMessage(&Message);
 		}
 		
-		// Input handling procedure.
-		int max_controller_count = XUSER_MAX_COUNT;
-		if(max_controller_count > ArrayCount(new_input->gamepad_controller)) {
-			max_controller_count = ArrayCount(new_input->gamepad_controller);
-		}
-		for(DWORD controller_index = 0; controller_index < max_controller_count; controller_index++) {
-			XINPUT_STATE ControllerState;
-
-			gamepad_controller_input *new_controller = &new_input->gamepad_controller[controller_index];
-			gamepad_controller_input *old_controller = &old_input->gamepad_controller[controller_index];
-
-			if(XInputGetState(controller_index, &ControllerState) == ERROR_SUCCESS) {
-				// Controller connected.
-				// Controller input collection.
-				XINPUT_GAMEPAD *GamepadState = &ControllerState.Gamepad;
-				
-				process_digital_button(GamepadState->wButtons, XINPUT_GAMEPAD_DPAD_UP, &old_controller->dpad_up, &new_controller->dpad_up);
-				process_digital_button(GamepadState->wButtons, XINPUT_GAMEPAD_DPAD_LEFT, &old_controller->dpad_left, &new_controller->dpad_left);
-				process_digital_button(GamepadState->wButtons, XINPUT_GAMEPAD_DPAD_DOWN, &old_controller->dpad_down, &new_controller->dpad_down);
-				process_digital_button(GamepadState->wButtons, XINPUT_GAMEPAD_DPAD_RIGHT, &old_controller->dpad_right, &new_controller->dpad_right);
-				process_digital_button(GamepadState->wButtons, XINPUT_GAMEPAD_Y, &old_controller->button_y, &new_controller->button_y);
-				process_digital_button(GamepadState->wButtons, XINPUT_GAMEPAD_X, &old_controller->button_x, &new_controller->button_x);
-				process_digital_button(GamepadState->wButtons, XINPUT_GAMEPAD_A, &old_controller->button_a, &new_controller->button_a);
-				process_digital_button(GamepadState->wButtons, XINPUT_GAMEPAD_B, &old_controller->button_b, &new_controller->button_b);
-				process_digital_button(GamepadState->wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER, &old_controller->left_shoulder, &new_controller->left_shoulder);
-				process_digital_button(GamepadState->wButtons, XINPUT_GAMEPAD_RIGHT_SHOULDER, &old_controller->right_shoulder, &new_controller->right_shoulder);
-
-				new_controller->is_analog = true;
-
-				new_controller->stick_start_x = old_controller->stick_end_x;
-				new_controller->stick_start_y = old_controller->stick_end_y;
-				
-				// Normalizing stick range
-				float x_ = (GamepadState->sThumbLX < 0) ? ((float)GamepadState->sThumbLX / 32768.0f) : ((float)GamepadState->sThumbLX / 32767.0f);
-				float y_ = (GamepadState->sThumbLY < 0) ? ((float)GamepadState->sThumbLY / 32768.0f) : ((float)GamepadState->sThumbLY / 32767.0f);
-
-				new_controller->stick_min_x = new_controller->stick_max_x = new_controller->stick_end_x = x_;
-				new_controller->stick_min_y = new_controller->stick_max_y = new_controller->stick_end_y = y_;
-
-				short LeftJoystickX = GamepadState->sThumbLX;
-				short LeftJoystickY = GamepadState->sThumbLY;
-				bool StartButton = (GamepadState->wButtons & XINPUT_GAMEPAD_START);
-				bool SelectButton = (GamepadState->wButtons & XINPUT_GAMEPAD_BACK);
-				
-			}else {
-				// Controller not connected or error.
-			}
-		}
+		BitmapBuffer GameBuffer = {};
+		GameBuffer.Memory = GlobalBackbuffer.Memory;
+		GameBuffer.Width = GlobalBackbuffer.Width;
+		GameBuffer.Height = GlobalBackbuffer.Height;
+		GameBuffer.BytePerPixel = GlobalBackbuffer.BytePerPixel;
+		GameBuffer.Pitch = GlobalBackbuffer.Pitch;
 		
 		/*
 		SOUND BUFFER PLAN:
@@ -561,8 +514,6 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		// Probably put LOW_BOUNDARY = BUFFER_SIZE and HIGH_BOUNDARY = 0 to make the whole buffer valid at first.
 		```
 		*/
-		
-		// Procedure to output the program.
 		
 		DWORD CurrentSoundPlayCursor = 0;
 		DWORD CurrentSoundWriteCursor = 0;
@@ -590,15 +541,63 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		GameSoundBuffer.SampleOut = SoundBufferPointer;
 		GameSoundBuffer.ReadyToWrite = ValidSound;
 		
-		BitmapBuffer GameBuffer = {};
-		GameBuffer.Memory = GlobalBackbuffer.Memory;
-		GameBuffer.Width = GlobalBackbuffer.Width;
-		GameBuffer.Height = GlobalBackbuffer.Height;
-		GameBuffer.BytePerPixel = GlobalBackbuffer.BytePerPixel;
-		GameBuffer.Pitch = GlobalBackbuffer.Pitch;
+		GameKeyboardState GameKey = {};
+		GameKey.VirtualKeycode = KeyInput.VirtualKeycode;
+		GameKey.WithAlt = KeyInput.WithAlt;
+		GameKey.Pressed = KeyInput.IsPressed;
 		
-		GameMain(&GameBuffer, &GameSoundBuffer, new_input);
+		int max_controller_count = XUSER_MAX_COUNT;
+		if(max_controller_count > ArrayCount(new_input->gamepad_controller)) {
+			max_controller_count = ArrayCount(new_input->gamepad_controller);
+		}
+		for(DWORD controller_index = 0; controller_index < max_controller_count; controller_index++) {
+			XINPUT_STATE controller_state;
+
+			gamepad_controller_input *new_controller = &new_input->gamepad_controller[controller_index];
+			gamepad_controller_input *old_controller = &old_input->gamepad_controller[controller_index];
+
+			if(XInputGetState(controller_index, &controller_state) == ERROR_SUCCESS) {
+				// Controller connected.
+				// Controller input collection.
+				XINPUT_GAMEPAD *gamepad_state = &controller_state.Gamepad;
+				
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_UP, &old_controller->dpad_up, &new_controller->dpad_up);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_LEFT, &old_controller->dpad_left, &new_controller->dpad_left);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_DOWN, &old_controller->dpad_down, &new_controller->dpad_down);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_RIGHT, &old_controller->dpad_right, &new_controller->dpad_right);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_Y, &old_controller->button_y, &new_controller->button_y);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_X, &old_controller->button_x, &new_controller->button_x);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_A, &old_controller->button_a, &new_controller->button_a);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_B, &old_controller->button_b, &new_controller->button_b);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER, &old_controller->left_shoulder, &new_controller->left_shoulder);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_RIGHT_SHOULDER, &old_controller->right_shoulder, &new_controller->right_shoulder);
+
+				new_controller->is_analog = true;
+
+				new_controller->stick_start_x = old_controller->stick_end_x;
+				new_controller->stick_start_y = old_controller->stick_end_y;
+				
+				// Normalizing stick range
+				float x_ = (gamepad_state->sThumbLX < 0) ? ((float)gamepad_state->sThumbLX / 32768.0f) : ((float)gamepad_state->sThumbLX / 32767.0f);
+				float y_ = (gamepad_state->sThumbLY < 0) ? ((float)gamepad_state->sThumbLY / 32768.0f) : ((float)gamepad_state->sThumbLY / 32767.0f);
+
+				new_controller->stick_min_x = new_controller->stick_max_x = new_controller->stick_end_x = x_;
+				new_controller->stick_min_y = new_controller->stick_max_y = new_controller->stick_end_y = y_;
+
+				bool start_button = (gamepad_state->wButtons & XINPUT_GAMEPAD_START);
+				bool select_button = (gamepad_state->wButtons & XINPUT_GAMEPAD_BACK);
+				
+			}else {
+				// Controller not connected or error.
+			}
+		}
 		
+		GameMain(&GameMemory, &GameBuffer, &GameSoundBuffer, &GameKey, new_input);
+		
+		HDC DeviceContext = GetDC(HandmadeHeroWindow);
+		ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(HandmadeHeroWindow);
+		DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer);
+
 		if(ValidSound) {
 			FillSoundBuffer(&SoundConfig, WriteRegionOffset, WriteRegionLength, &GameSoundBuffer);
 		}
@@ -607,10 +606,6 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 			GlobalSecondarySoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
 			SoundConfig.SoundIsPlaying = true;
 		}
-		
-		HDC DeviceContext = GetDC(HandmadeHeroWindow);
-		ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(HandmadeHeroWindow);
-		DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer);
 		
 		gamepad_input *temp_ = new_input;
 		new_input = old_input;

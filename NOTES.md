@@ -785,3 +785,72 @@ To avoid bugs, the allocated memory must be initialized by zero, if the platform
 
 Assertion is a check to something in a program, that halts its process if it evaluates to false.
 It's used for debugging purposes, the program will run normally if the assertion evaluates to true.
+
+# 06/07/2026
+
+## Overview game file I/O
+
+There are two types of I/O operations that a game will perform, **Read-only** and **Read-and-write**.
+
+### Read-only type
+
+This is the type where the game only pulls, and don't modifies a file, that is it's just reads.
+This is how music, sfx, sprites, etc. are loaded, these assets are fixed, therefore the game don't need to werite them.
+
+### Read-and-write type
+
+This is the type where the game will read and modify the files.
+This is how configurations, game progression, stats, etc. are set and loaded.
+
+# 08/07/2026
+
+## How to read files
+
+Files comes to us in the form of handles, which are basically indexes pointing to a OS resource. They use handles to reference the resource in question.
+
+To receive a handle to a file we call the function `CreateFile()` which can create a file as well to read and write to a file.
+It receives as parameters:
+- The file name (`lpFileName`). 
+- Access mode (`dwDesiredAccess`), this can be just write, read, or both, and it has a whole bunch of options irrelevant to us right now. 
+- Share mode (`dwShareMode`), this specifies what other process can do with that file while it's open to ours, basically what access type we allow other process to have while the file is on our hands.
+- Security attributes (`lpSecurityAttributes`), this specifies the security attributes of the file handle, and whether can it be inherited by child process or not, this is optional.
+- Creation disposition (`dwCreationDisposition`), this specifies what will be done to the reached file. Depending if the file exists or not, it will specify if the file is created, opened, or leave untouched (return failure).
+- Flags and Attributes (`dwFlagsAndAttributes`), specifies a bunch of flags and attributes to the file defining what can be done with it, or what it'll do, this is optional.
+
+### Reading a file
+
+With the handle in hands, we must determine the size of the file in order to allocate memory to it.
+For this we call the function `GetFileSizeEx()`, which returns the size of the file in bytes.
+It receives as parameters:
+- The file handle (`hFile`).
+- A pointer to a LARGE_INTEGER (`lpFileSize`), which will receive the concerning value.
+
+Then we must allocate the buffe for the file with `VirtualAlloc()` and write to it with `ReadFile()`.
+`ReadFile()` receives as parameters:
+- The file handle (`hFile`).
+- A pointer to the buffer (`lpBuffer`), in which the file data will be stored.
+- The number of bytes to read (`nNumberOfByteToRead`).
+- A pointer to a DWORD (`lpNumberOfBytesRead`), which will store the number of bytes the function read, apparently the function can succeed and be interrupted on the middle of it, so this variable informs that state, although we will only consider success if the bytes read is equal the bytes to read.
+- A ponter to a OVERLAPPED struct (`lpOverlapped`), this is optional, and only useful if we're performing an asynchronous operation.
+
+### Writing to a file
+
+With the handle of the file available. The process to write to a file is simpler, just a call to `WriteFile()` function.
+
+The `WriteFile()` function writes data from a buffer into a file.
+
+**Remember:** The action take whether a file already exists or not, depends on the Creation disposition parameter of the `CreateFile()` function that returned the handle.
+
+`WriteFile()` receives as parameters:
+- The file handle (`hFile`).
+- A pointer to a buffer (`lpBuffer`), which contains the data to be written on the file.
+- The number of bytes to write (`nNumberOfBytesToWrite`).
+- A pointer to a DWORD (`lpNumberOfBytesWritten`), which will store the number of bytes the function wrote, in the same fashion as `ReadFile()` can succeed, and be interrupted.
+- A pointer to a OVERLAPPED struct (`lpOverlapped`), this optional, and only useful when performing asynchronous operations.
+
+# 13/07/2026
+
+## Important note on file writing.
+
+As the operation of writing can be interrupted mid writing, the target file can be only partially overwritten, thus leading to a corrupt file.
+Two techniques to avoid this is to have two save files, A and B, and keep switching the write operation and read the more recent; or to create a temp file, then delete the old file and rename the temp if the operation succeed completely.

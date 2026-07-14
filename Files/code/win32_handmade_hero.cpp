@@ -319,6 +319,74 @@ static void process_digital_button(WORD buttons_state, short button_bitmask, gam
 
 #pragma endregion
 
+#pragma region FILE I/O
+/*
+###################################################################################################
+#
+# FILE I/O
+#
+###################################################################################################
+*/
+
+static DEBUG_FileRead DEBUG_ReadFile(char *FileName) {
+	DEBUG_FileRead Result = {};
+	HANDLE FileHandle = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	if(FileHandle == INVALID_HANDLE_VALUE) {
+		// Error catch.
+		return Result;
+	}
+
+	LARGE_INTEGER FileSize;
+	int GetSizeSuccess = GetFileSizeEx(FileHandle, &FileSize);
+	if(!GetSizeSuccess) {
+		// Error catch.
+		return Result;
+	}
+	
+	Result.FileSize = Truncate64bitsTo32bits(FileSize.QuadPart);
+	DWORD BytesRead;
+	Result.FileContent = VirtualAlloc(0, Result.FileSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	bool ReadFileSuccess = (ReadFile(FileHandle, Result.FileContent, Result.FileSize, &BytesRead, 0) && (BytesRead == Result.FileSize));
+	if(ReadFileSuccess) {
+		// Successfully read the file.
+	}else {
+		// Error catch.
+		DEBUG_FreeFileMemory(Result.FileContent);
+		Result = {};
+	}
+
+	CloseHandle(FileHandle);
+	return Result;
+}
+
+static bool DEBUG_WriteFile(char *FileName, uint MemorySize, void *Memory) {
+	bool Result = false;
+	HANDLE FileHandle = CreateFile(FileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+	if(FileHandle == INVALID_HANDLE_VALUE) {
+		// Error catch.
+		Result = false;
+		return Result;
+	}
+
+	DWORD BytesWritten;
+	bool WriteFileSuccess = (WriteFile(FileHandle, Memory, MemorySize, &BytesWritten, 0) && (BytesWritten == MemorySize));
+	if(WriteFileSuccess) {
+		// Written a file successfully.
+		Result = true;
+	}else {
+		// Error catch.
+		Result = false;
+	}
+	CloseHandle(FileHandle);
+	return Result;
+}
+
+static void DEBUG_FreeFileMemory(void *Memory) {
+	VirtualFree(Memory, 0, MEM_RELEASE);
+}
+
+#pragma endregion
+
 #pragma region WINDOW
 /*
 ###################################################################################################

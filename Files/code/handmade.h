@@ -4,13 +4,29 @@
 
 #define KB *(1024)
 #define MB *(1024 KB)
-#define GB *((ullong)1024 MB)
+#define GB *(1024LL MB)
 #define TB *(1024 GB)
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
+uint Truncate64bitsTo32bits(ullong UInt64) {
+	Assert(UInt64 <= 0xFFFFFFFF);
+	return (uint)UInt64;
+}
+
 #pragma region OS to Game
 // TODO: Put here things that are retrieved from the OS.
+/*
+IMPORTANT: These functions aren't protective and should not be present on the end code.
+	For example, the write may be interrupted mid writing thus leading to a corrupt file.
+*/
+struct DEBUG_FileRead {
+	uint FileSize;
+	void *FileContent;
+};
+static DEBUG_FileRead DEBUG_ReadFile(char *FileName);
+static bool DEBUG_WriteFile(char *FileName, uint MemorySize, void *Memory);
+static void DEBUG_FreeFileMemory(void *Memory);
 #pragma endregion
 
 #pragma region Game to OS
@@ -99,5 +115,3 @@ struct gamepad_controller_input {
 struct gamepad_input {
 	gamepad_controller_input gamepad_controller[4];
 };
-
-// TODO: Design the way to pass keyboard inputs.

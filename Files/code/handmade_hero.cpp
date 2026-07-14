@@ -45,6 +45,13 @@ static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *Soun
 
 	GameState *State = (GameState *)Memory->PermanentPtr;
 	if(!Memory->Initialized) {
+		char *FileName = __FILE__;
+		DEBUG_FileRead File = DEBUG_ReadFile(FileName);
+		if(File.FileContent) {
+			DEBUG_WriteFile("test.out", File.FileSize, File.FileContent);
+			DEBUG_FreeFileMemory(File.FileContent);
+		}
+
 		State->Render.Speed = 4;
 		State->Sound.ToneVolume = 4000;
 		State->Sound.ToneHertz = 261;
@@ -52,7 +59,7 @@ static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *Soun
 	}
 
 	if(KeyState->Pressed) {
-		switch (KeyState->VirtualKeycode) {
+		switch(KeyState->VirtualKeycode) {
 			case 'W':
 			{
 				State->Render.YOffset -= State->Render.Speed;

@@ -3,13 +3,6 @@
 
 #define PI 3.14159265359f
 
-typedef unsigned char uchar;
-typedef unsigned short ushort;
-typedef unsigned int uint;
-typedef unsigned long ulong;
-typedef long long llong;
-typedef unsigned long long ullong;
-
 #include "handmade_hero.cpp"
 
 #include <Windows.h>
@@ -157,11 +150,11 @@ static void LoadSoundLib(HWND WindowHandle, int BufferSize, int SamplesPerSecond
 					if(SUCCEEDED(PrimarySoundBuffer->SetFormat(&WaveFormatex))) {
 						// Buffer format set.
 					}else {
-						// Error catch.
+						// ERROR CATCH.
 						Error = GetLastError();
 					}
 				}else {
-					// Error catch.
+					// ERROR CATCH.
 					Error = GetLastError();
 				}
 
@@ -175,20 +168,20 @@ static void LoadSoundLib(HWND WindowHandle, int BufferSize, int SamplesPerSecond
 				if(SUCCEEDED(DirectSoundObject->CreateSoundBuffer(&SecondarySoundBufferDescription, &GlobalSecondarySoundBuffer, 0))) {
 					// Secondary buffer created.
 				}else {
-					// Error catch.
+					// ERROR CATCH.
 					Error = GetLastError();
 				}
 			}else {
-			// Error catch.
+			// ERROR CATCH.
 			Error = GetLastError();
 			}
 
 		}else {
-			// Error catch.
+			// ERROR CATCH.
 			Error = GetLastError();
 		}
 	}else {
-		// Error catch.
+		// ERROR CATCH.
 		Error = GetLastError();
 	}
 
@@ -207,7 +200,7 @@ struct SoundOutputConfig {
 	int ChunkSize;
 	int ChunkCount;
 	int ChunkIndex;
-	int LastChunk;
+	uint LastChunk;
 	uint RunningSampleIndex; // maybe useless.
 	bool SoundIsPlaying;
 };
@@ -220,11 +213,11 @@ static void ClearSoundBuffer(SoundOutputConfig *SoundOutputConfig) {
 	HRESULT LockResult = GlobalSecondarySoundBuffer->Lock(0, SoundOutputConfig->BufferSize, &FirstWriteRegionPointer, &FirstWriteRegionLength, &SecondWriteRegionPointer, &SecondWriteRegionLength, 0);
 	if(SUCCEEDED(LockResult)) {
 		char *SampleOutput = (char *)FirstWriteRegionPointer;
-		for(int ByteIndex = 0; ByteIndex < FirstWriteRegionLength; ByteIndex++) {
+		for(uint ByteIndex = 0; ByteIndex < FirstWriteRegionLength; ByteIndex++) {
 			*SampleOutput = 0;
 		}
 		SampleOutput = (char *)SecondWriteRegionPointer;
-		for(int ByteIndex = 0; ByteIndex < SecondWriteRegionLength; ByteIndex++) {
+		for(uint ByteIndex = 0; ByteIndex < SecondWriteRegionLength; ByteIndex++) {
 			*SampleOutput = 0;
 		}
 		GlobalSecondarySoundBuffer->Unlock(FirstWriteRegionPointer, FirstWriteRegionLength, SecondWriteRegionPointer, SecondWriteRegionLength);
@@ -277,6 +270,7 @@ static void FillSoundBuffer(SoundOutputConfig *SoundOutputConfig, DWORD WriteReg
 ###################################################################################################
 */
 
+/* GLOBAL WINDOWS KEYBOARD STRUCT
 struct KeyboardInputInfo {
 	uint VirtualKeycode;
 	bool WithAlt;
@@ -285,6 +279,7 @@ struct KeyboardInputInfo {
 };
 
 static KeyboardInputInfo KeyInput;
+*/
 
 DWORD WINAPI ThereAreNoXInputLib(DWORD dwUserIndex, XINPUT_STATE* pState) {
 	return ERROR_DEVICE_NOT_CONNECTED;
@@ -312,7 +307,7 @@ static void LoadXInputLib(void) {
 	}
 }
 
-static void process_digital_button(WORD buttons_state, short button_bitmask, gamepad_button_state *old_button_state, gamepad_button_state *new_button_state) {
+static void process_digital_button(WORD buttons_state, ushort button_bitmask, gamepad_button_state *old_button_state, gamepad_button_state *new_button_state) {
 	new_button_state->ended_down = ((buttons_state & button_bitmask) == button_bitmask);
 	new_button_state->transition_count = (old_button_state->ended_down != new_button_state->ended_down) ? 1 : 0;
 }
@@ -332,14 +327,14 @@ static DEBUG_FileRead DEBUG_ReadFile(char *FileName) {
 	DEBUG_FileRead Result = {};
 	HANDLE FileHandle = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	if(FileHandle == INVALID_HANDLE_VALUE) {
-		// Error catch.
+		// ERROR CATCH.
 		return Result;
 	}
 
 	LARGE_INTEGER FileSize;
 	int GetSizeSuccess = GetFileSizeEx(FileHandle, &FileSize);
 	if(!GetSizeSuccess) {
-		// Error catch.
+		// ERROR CATCH.
 		return Result;
 	}
 	
@@ -350,7 +345,7 @@ static DEBUG_FileRead DEBUG_ReadFile(char *FileName) {
 	if(ReadFileSuccess) {
 		// Successfully read the file.
 	}else {
-		// Error catch.
+		// ERROR CATCH.
 		DEBUG_FreeFileMemory(Result.FileContent);
 		Result = {};
 	}
@@ -363,7 +358,7 @@ static bool DEBUG_WriteFile(char *FileName, uint MemorySize, void *Memory) {
 	bool Result = false;
 	HANDLE FileHandle = CreateFile(FileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
 	if(FileHandle == INVALID_HANDLE_VALUE) {
-		// Error catch.
+		// ERROR CATCH.
 		Result = false;
 		return Result;
 	}
@@ -374,7 +369,7 @@ static bool DEBUG_WriteFile(char *FileName, uint MemorySize, void *Memory) {
 		// Written a file successfully.
 		Result = true;
 	}else {
-		// Error catch.
+		// ERROR CATCH.
 		Result = false;
 	}
 	CloseHandle(FileHandle);
@@ -438,13 +433,16 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
 
 		case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSKEYDOWN:
 		{
-			KeyInput.VirtualKeycode = WParam;
+			Assert(!"Keyboard input passed through message dispatch.");
+			/*
+			KeyInput.VirtualKeycode = (uint)WParam;
 			KeyInput.WithAlt = (LParam & (1 << 29));
 			KeyInput.WasPressed = (LParam & (1 << 30));
 			KeyInput.IsPressed = !(LParam & (1 << 31));
 			if(KeyInput.IsPressed && (KeyInput.VirtualKeycode == VK_ESCAPE)) {
 				Running = false;
 			}
+			*/
 		}
 		break;
 
@@ -476,8 +474,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	WindowClass.lpszClassName = "HandmadeHeroWindowClass";
 
 	if(!RegisterClass(&WindowClass)) {
-		DWORD Error = GetLastError();
-		//cout << "Register failed with: " << Error << endl;
+		// Class not initialized, ERROR CATCH.
 	}
 
 	HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 100, 100, 640, 480, 0, 0, Instance, 0);
@@ -485,8 +482,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	if(HandmadeHeroWindow) {
 		Running = true;
 	}else {
-		DWORD Error = GetLastError();
-		//cout << "Window created null or with error: " << Error << endl;
+		// Window not created, ERROR CATCH.
 		return 0;
 	}
 
@@ -535,6 +531,8 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 
 	// Input setup.
 	LoadXInputLib();
+
+	GameKeyboardState KeyInput = {};
 	
 	gamepad_input input_[2] = {0, 0};
 	gamepad_input *new_input = &input_[0];
@@ -544,20 +542,37 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	if(SoundBufferPointer && GameMemory.PermanentPtr && GameMemory.VolatilePtr) {
 		Running = true;
 	}else {
-		// TODO: Error catch?
+		// TODO: ERROR CATCH?
 	}
 
 	// While loop controled by a bool to keep the program running, because `PeekMessage` gets outta the loop when there are no messages.
 	while(Running) {
 		MSG Message;
 		while(PeekMessage(&Message, 0, 0, 0, PM_REMOVE)) {
-			// Check for a quit message to guarantee the program will terminate when desired.
-			if(Message.message == WM_QUIT) {
-				Running = false;
-			}
 			// Message handling
-			TranslateMessage(&Message);
-			DispatchMessage(&Message);
+			switch(Message.message) {
+				case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSKEYDOWN:
+				{
+					KeyInput.VirtualKeycode = (uint)Message.wParam;
+					KeyInput.WithAlt = (Message.lParam & (1 << 29));
+					KeyInput.WasPressed = (Message.lParam & (1 << 30));
+					KeyInput.IsPressed = !(Message.lParam & (1 << 31));
+					if(KeyInput.IsPressed && (KeyInput.VirtualKeycode == VK_ESCAPE)) {
+						Running = false;
+					}
+				}
+				break;
+
+				case WM_QUIT:
+				{
+					Running = false;
+				}
+
+				default: {
+					TranslateMessage(&Message);
+					DispatchMessage(&Message);
+				}break;
+			}
 		}
 		
 		BitmapBuffer GameBuffer = {};
@@ -609,12 +624,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		GameSoundBuffer.SampleOut = SoundBufferPointer;
 		GameSoundBuffer.ReadyToWrite = ValidSound;
 		
-		GameKeyboardState GameKey = {};
-		GameKey.VirtualKeycode = KeyInput.VirtualKeycode;
-		GameKey.WithAlt = KeyInput.WithAlt;
-		GameKey.Pressed = KeyInput.IsPressed;
-		
-		int max_controller_count = XUSER_MAX_COUNT;
+		uint max_controller_count = XUSER_MAX_COUNT;
 		if(max_controller_count > ArrayCount(new_input->gamepad_controller)) {
 			max_controller_count = ArrayCount(new_input->gamepad_controller);
 		}
@@ -633,12 +643,14 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_LEFT, &old_controller->dpad_left, &new_controller->dpad_left);
 				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_DOWN, &old_controller->dpad_down, &new_controller->dpad_down);
 				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_RIGHT, &old_controller->dpad_right, &new_controller->dpad_right);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_Y, &old_controller->button_y, &new_controller->button_y);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_X, &old_controller->button_x, &new_controller->button_x);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_A, &old_controller->button_a, &new_controller->button_a);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_B, &old_controller->button_b, &new_controller->button_b);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_Y, &old_controller->y_button, &new_controller->y_button);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_X, &old_controller->x_button, &new_controller->x_button);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_A, &old_controller->a_button, &new_controller->a_button);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_B, &old_controller->b_button, &new_controller->b_button);
 				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER, &old_controller->left_shoulder, &new_controller->left_shoulder);
 				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_RIGHT_SHOULDER, &old_controller->right_shoulder, &new_controller->right_shoulder);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_START, &old_controller->start_button, &new_controller->start_button);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_BACK, &old_controller->select_button, &new_controller->select_button);
 
 				new_controller->is_analog = true;
 
@@ -651,16 +663,12 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 
 				new_controller->stick_min_x = new_controller->stick_max_x = new_controller->stick_end_x = x_;
 				new_controller->stick_min_y = new_controller->stick_max_y = new_controller->stick_end_y = y_;
-
-				bool start_button = (gamepad_state->wButtons & XINPUT_GAMEPAD_START);
-				bool select_button = (gamepad_state->wButtons & XINPUT_GAMEPAD_BACK);
-				
 			}else {
 				// Controller not connected or error.
 			}
 		}
 		
-		GameMain(&GameMemory, &GameBuffer, &GameSoundBuffer, &GameKey, new_input);
+		GameMain(&GameMemory, &GameBuffer, &GameSoundBuffer, &KeyInput, new_input);
 		
 		HDC DeviceContext = GetDC(HandmadeHeroWindow);
 		ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(HandmadeHeroWindow);
@@ -684,7 +692,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		// Performance counting and display.
 
 		// TODO: Log the timing of each critical progress (render, audio, input).
-
+		
 		ullong EndCycleCount = __rdtsc();
 		ullong CyclesPassed = EndCycleCount - LastCycleCount;
 		float MegaCyclesPerFrame = (float)(CyclesPassed) / (1000.0f * 1000.0f);
@@ -695,9 +703,11 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		float MSPerFrame = (1000.0f * (float)(CountPassed)) / (float)(CountFrequency);
 		int FPS = (int)(CountFrequency / CountPassed);
 		
+		/*
 		char StringBuffer[256];
 		sprintf(StringBuffer, "Render Time: %.03fms. FPS: %d. CPU Cycles: %.03fM.\n", MSPerFrame, FPS, MegaCyclesPerFrame); // WARNNG: This type of string outputting is problematic, it assumes a long enough buffer and the formats may access what it shouldn't on the stack.
-		// OutputDebugString(StringBuffer);
+		OutputDebugString(StringBuffer);
+		*/
 		
 		LastCycleCount = EndCycleCount;
 		LastCount = EndCount;

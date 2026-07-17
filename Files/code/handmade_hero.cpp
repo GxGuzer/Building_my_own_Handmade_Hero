@@ -28,8 +28,8 @@ void RenderGrad(BitmapBuffer *Buffer, int XOffset, int YOffset) {
 		uint *Pixel = (uint *)Row;
 		for (int X = 0; X < Buffer->Width; X++) {
 			
-			uchar Red = X + XOffset;
-			uchar Green = Y + YOffset;
+			uchar Red = (uchar)(X + XOffset);
+			uchar Green = (uchar)(Y + YOffset);
 			uchar Blue = 0;
 
 			*Pixel = ((Red << 16) | (Green << 8) | Blue);
@@ -58,7 +58,7 @@ static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *Soun
 		Memory->Initialized = true;
 	}
 
-	if(KeyState->Pressed) {
+	if(KeyState->IsPressed) {
 		switch(KeyState->VirtualKeycode) {
 			case 'W':
 			{
@@ -109,7 +109,7 @@ static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *Soun
 
 	// Input.AButtonEndedDown;
 	// Input.AButtonTransitionCount;
-	if(input_0->button_a.ended_down) {
+	if(input_0->a_button.ended_down) {
 		State->Render.XOffset++;
 	}
 

@@ -1,3 +1,10 @@
+typedef unsigned char uchar;
+typedef unsigned short ushort;
+typedef unsigned int uint;
+typedef unsigned long ulong;
+typedef long long llong;
+typedef unsigned long long ullong;
+
 #define Assert(Expression) if(!(Expression)) { \
 	*(int *)0 = 0; \
 }
@@ -71,7 +78,8 @@ struct BitmapBuffer {
 struct GameKeyboardState {
 	uint VirtualKeycode;
 	bool WithAlt;
-	bool Pressed;
+	bool WasPressed;
+	bool IsPressed;
 };
 
 struct gamepad_button_state {
@@ -81,18 +89,20 @@ struct gamepad_button_state {
 
 struct gamepad_controller_input {
 	union {
-		gamepad_button_state gamepad_button[10];
+		gamepad_button_state gamepad_button[12];
 		struct {
 			gamepad_button_state dpad_up;
 			gamepad_button_state dpad_left;
 			gamepad_button_state dpad_down;
 			gamepad_button_state dpad_right;
-			gamepad_button_state button_y;
-			gamepad_button_state button_x;
-			gamepad_button_state button_a;
-			gamepad_button_state button_b;
+			gamepad_button_state y_button;
+			gamepad_button_state x_button;
+			gamepad_button_state a_button;
+			gamepad_button_state b_button;
 			gamepad_button_state left_shoulder;
 			gamepad_button_state right_shoulder;
+			gamepad_button_state start_button;
+			gamepad_button_state select_button;
 		};
 	};
 

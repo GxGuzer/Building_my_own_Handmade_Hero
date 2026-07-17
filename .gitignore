@@ -2,4 +2,4 @@
 *.bat
 /Files/build/.vs/**
 .vscode/**
-/test.out
+test.out

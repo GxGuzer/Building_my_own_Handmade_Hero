@@ -854,3 +854,76 @@ The `WriteFile()` function writes data from a buffer into a file.
 
 As the operation of writing can be interrupted mid writing, the target file can be only partially overwritten, thus leading to a corrupt file.
 Two techniques to avoid this is to have two save files, A and B, and keep switching the write operation and read the more recent; or to create a temp file, then delete the old file and rename the temp if the operation succeed completely.
+
+# 16/07/2026
+
+## Notes on warnings
+
+Warning are little callouts of the compiler it may think it's a mistake. The general scope of warnings can be defined with the flag `/W<n>`, where `n` is the warning level, it goes from 1 through 4, and `all` marks an even higher level. 
+Warnings don't prevents the code from compiling but we can indicate that through the flag `/WX`, which treats warinings as errors. 
+Then we can turn off specific trivial warnings with `/wd<n>` where `n` is the warning code to disable.
+
+## Other compiler flags
+
+`/FC` makes the compiler outputs the full path of a file when it finds an error or warning.
+`/Oi` asks the compiler to use intrisic functions (CPU functions) instead of function calls when it can (f.e. the cruntime library `sinf()` function could be substituted by the intrisic sine function).
+`/Zi` makes the compiler generate debug info files, which acts like a map to the debugger, like point where in the executable corresponds to where in the source code, and where are the location of variables. An "old style" version of it can be enabled by using `/Z7`, which worths to point out that `/Z7` may work better than `/Zi` on multithreaded programs according to Casey.
+
+# 17/07/2026
+
+## Runtime type information
+
+RTTI (RunTime Type Information) is a feature that exposes data types info at runtime. According to [Wikipedia](https://en.wikipedia.org/wiki/Run-time_type_information) it's useful to perform safe typecasts and type manipulation at runtime.
+It can be specified with the compiler flag `/GR`, but we won't use it, so we'll disable it (specify flag `/GR-`).
+
+## Exception handling
+
+C++ has a feature of exception handling, which on `try / catch` you could `throw` an exception, that will unwind all the stack inside the `try` block and proceed to estimate, and execute the `catch` block. That creates a some sort of "stack tracking" overhead, so we will not enable (`/EHs`, or `/EHsc`) that.
+
+## Note on 32 bit builds
+
+Handmade Hero was started on 2014, Casey's minimum platform target was Windows XP, but nowadays even Windows 8 is discontinued, so i will not worry on 32 bit builds, since it's practically sure that there are just 64 bit machines around.
+
+## Redistributable packages
+
+Basically the Windows C-Runtime library is supposed to be packaged with the OS, but different OSes and machines have different versions of such libraries, i don't know how it is with Windows 10 vs. 11, but at older times there were a big discrepancy to which libraries were available for each machine.
+The compiler flag `/MD`, compiles the executable to use dynamic library linking, that means the executable will try and find the libraries in order to run. While `/MT` compiles it to use static library linking, that means the executable will import the libraries in it, making it slightly bigger, but no search for libraries is required.
+`/MT` is more preferable than `/MD`, because the user doesn't need to install libraries if it doesn't have it, since it goes within the executable.
+When using many and/or third party libraries, all libraries must be compiled with the same "linking mode".
+
+## Map files
+
+A .map file, is a text file that contain all the objects linked to your executable as well as where it is from.
+The map file is created if you compile with the flag `/Fm<path>` where `path` is the path to the map file.
+
+It can inform you about the dozens of functions used in the executable.
+
+### C++ and mangled names
+
+C++ was design on top of C, and one of it features is function overloading, that is have many functions with the same name, as long they have different parameters.
+C++ is used to compile multiple files (or translation unit), so as it can't predict if an overload happen between files, it mangles the names of all functions it compiles.
+These names are basically suffixes to a specific function so the linker differs them and point to right function to be called.
+
+The source code is completely normal, the mangling can only be seen on the .map file.
+
+## Linker options
+
+`/link` at the end of the command line (after compile options and file names) specifies that the next options are linker options, to tell the linker to do somethings.
+
+### choosing subsystem
+
+`/subsystem` tells the linker to what subsystem to target its libraries.
+Casey uses it to target Windows XP with `/subsystem:windows,5.1` (the slash "/" was a hyphen "-" when signaling switches and flags before).
+
+### Reference linking
+
+`/opt` is a option for link optimizations.
+`/opt:ref` tells the linker to ignore unreferenced objects.
+`/opt:noref` tells the linker to keep unreferenced objects.
+
+## Other compiler flags
+
+`/nologo` supresses the Microsoft copyright banner on terminal.
+`/Gm` enables minimal builds, that is don't build what haven't changed, this is marked as deprecated and for removal, i think it's disabled by default, but a guaranteed disabled can be flagged with `/Gm-`.
+
+The optimization level can be set through the flags `/O1` which favors space, `/O2` which favors speed, and `/Od` which disables optimizations completely.

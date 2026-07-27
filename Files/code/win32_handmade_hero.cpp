@@ -307,9 +307,26 @@ static void LoadXInputLib(void) {
 	}
 }
 
-static void process_digital_button(WORD buttons_state, ushort button_bitmask, gamepad_button_state *old_button_state, gamepad_button_state *new_button_state) {
-	new_button_state->ended_down = ((buttons_state & button_bitmask) == button_bitmask);
-	new_button_state->transition_count = (old_button_state->ended_down != new_button_state->ended_down) ? 1 : 0;
+static void ProcessKeyboardButton(GamepadButtonState *NewButtonState, bool IsPressed) {
+	NewButtonState->EndedDown = IsPressed;
+	++NewButtonState->TransitionCount;
+}
+
+static void process_digital_button(WORD buttons_state, ushort button_bitmask, GamepadButtonState *old_button_state, GamepadButtonState *new_button_state) {
+	new_button_state->EndedDown = ((buttons_state & button_bitmask) == button_bitmask);
+	new_button_state->TransitionCount = (old_button_state->EndedDown != new_button_state->EndedDown) ? 1 : 0;
+}
+
+static float process_analogic_stick(SHORT hardware_stick_value, SHORT dead_zone_constant) {
+	float stick_value = 0;
+	
+	if(hardware_stick_value < -dead_zone_constant) {
+		stick_value = (float)hardware_stick_value / 32768.0f;
+	}else if(hardware_stick_value > dead_zone_constant) {
+		stick_value = (float)hardware_stick_value / 32767.0f;
+	}
+	
+	return stick_value;
 }
 
 #pragma endregion
@@ -395,21 +412,16 @@ static void DEBUG_FreeFileMemory(void *Memory) {
 LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam) {
 	LRESULT Result = 0;
 	switch (Message) {
-		case WM_SIZE: 
-		{
+		case WM_SIZE: {
 			InvalidateRect(Window, NULL, true);
-		}
-		break;
+		}break;
 
-		case WM_DESTROY:
-		{
+		case WM_DESTROY: {
 			// TODO: Error handle with window recreation?
 			PostQuitMessage(0); 
-		}
-		break;
+		}break;
 		
-		case WM_PAINT:
-		{
+		case WM_PAINT: {
 			PAINTSTRUCT Paint;
 			HDC DeviceContext = BeginPaint(Window, &Paint);
 
@@ -417,22 +429,18 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
 			DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer);
 
 			EndPaint(Window, &Paint);
-		}
-		break;
+		}break;
 
-		case WM_CLOSE:
-		{
+		case WM_CLOSE: {
 			/*
 			if(MessageBox(Window, "Get Out?", "Close the game?", MB_OKCANCEL) == IDOK) {
 			DestroyWindow(Window);
 			}*/ 
 			DestroyWindow(Window);
 			//cout << "Close" << endl;
-		}
-		break;
+		}break;
 
-		case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSKEYDOWN:
-		{
+		case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSKEYDOWN: {
 			Assert(!"Keyboard input passed through message dispatch.");
 			/*
 			KeyInput.VirtualKeycode = (uint)WParam;
@@ -443,16 +451,95 @@ LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LPa
 				Running = false;
 			}
 			*/
-		}
-		break;
+		}break;
 
-		default:
-		{
+		default: {
 			Result = DefWindowProc(Window, Message, WParam, LParam);
-		}
-		break;
+		}break;
 	}
 	return Result;
+}
+
+static void WindowMsg(GameKeyboardState KeyInput, gamepad_controller_input *KeyboardController) {
+	MSG Message;
+	while(PeekMessage(&Message, 0, 0, 0, PM_REMOVE)) {
+		// Message handling
+		switch(Message.message) {
+			case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSKEYDOWN: {
+				KeyInput.VirtualKeycode = (uint)Message.wParam;
+				KeyInput.WithAlt = (Message.lParam & (1 << 29));
+				KeyInput.WasPressed = (Message.lParam & (1 << 30));
+				KeyInput.IsPressed = !(Message.lParam & (1 << 31));
+				
+				if(KeyInput.WasPressed != KeyInput.IsPressed) {
+					switch(KeyInput.VirtualKeycode) {
+						case 'W': {
+							ProcessKeyboardButton(&KeyboardController->LeftStickUp, KeyInput.IsPressed);
+						}break;
+						
+						case 'A': {
+							ProcessKeyboardButton(&KeyboardController->LeftStickLeft, KeyInput.IsPressed);
+						}break;
+						
+						case 'S': {
+							ProcessKeyboardButton(&KeyboardController->LeftStickDown, KeyInput.IsPressed);
+						}break;
+						
+						case 'D': {
+							ProcessKeyboardButton(&KeyboardController->LeftStickRight, KeyInput.IsPressed);
+						}break;
+						
+						case 'J': {
+							ProcessKeyboardButton(&KeyboardController->AButton, KeyInput.IsPressed);
+						}break;
+	
+						case 'K': {
+							ProcessKeyboardButton(&KeyboardController->BButton, KeyInput.IsPressed);
+						}break;
+	
+						case 'U': {
+							ProcessKeyboardButton(&KeyboardController->XButton, KeyInput.IsPressed);
+						}break;
+	
+						case 'I': {
+							ProcessKeyboardButton(&KeyboardController->YButton, KeyInput.IsPressed);
+						}break;
+						
+						case VK_UP: {
+							ProcessKeyboardButton(&KeyboardController->DpadUp, KeyInput.IsPressed);
+						}break;
+						
+						case VK_LEFT: {
+							ProcessKeyboardButton(&KeyboardController->DpadLeft, KeyInput.IsPressed);
+						}break;
+						
+						case VK_DOWN: {
+							ProcessKeyboardButton(&KeyboardController->DpadDown, KeyInput.IsPressed);
+						}break;
+						
+						case VK_RIGHT: {
+							ProcessKeyboardButton(&KeyboardController->DpadRight, KeyInput.IsPressed);
+						}break;
+	
+						case VK_ESCAPE: {
+							if(KeyInput.IsPressed) {
+								Running = false;
+							}
+						}break;
+					}
+				}
+			}break;
+
+			case WM_QUIT: {
+				Running = false;
+			}break;
+
+			default: {
+				TranslateMessage(&Message);
+				DispatchMessage(&Message);
+			}break;
+		}
+	}
 }
 #pragma endregion
 
@@ -545,35 +632,18 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		// TODO: ERROR CATCH?
 	}
 
+	#pragma region RUNNING
 	// While loop controled by a bool to keep the program running, because `PeekMessage` gets outta the loop when there are no messages.
 	while(Running) {
-		MSG Message;
-		while(PeekMessage(&Message, 0, 0, 0, PM_REMOVE)) {
-			// Message handling
-			switch(Message.message) {
-				case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSKEYDOWN:
-				{
-					KeyInput.VirtualKeycode = (uint)Message.wParam;
-					KeyInput.WithAlt = (Message.lParam & (1 << 29));
-					KeyInput.WasPressed = (Message.lParam & (1 << 30));
-					KeyInput.IsPressed = !(Message.lParam & (1 << 31));
-					if(KeyInput.IsPressed && (KeyInput.VirtualKeycode == VK_ESCAPE)) {
-						Running = false;
-					}
-				}
-				break;
-
-				case WM_QUIT:
-				{
-					Running = false;
-				}
-
-				default: {
-					TranslateMessage(&Message);
-					DispatchMessage(&Message);
-				}break;
-			}
+		gamepad_controller_input *NewKeyboardController = &new_input->gamepad_controller[0];
+		gamepad_controller_input *OldKeyboardController = &old_input->gamepad_controller[0];
+		*NewKeyboardController = {};
+		NewKeyboardController->IsConnected = true;
+		for(int ButtonIndex = 0; ButtonIndex < ArrayCount(NewKeyboardController->GamepadButton); ButtonIndex++) {
+			NewKeyboardController->GamepadButton[ButtonIndex].EndedDown = OldKeyboardController->GamepadButton[ButtonIndex].EndedDown;
 		}
+
+		WindowMsg(KeyInput, NewKeyboardController);
 		
 		BitmapBuffer GameBuffer = {};
 		GameBuffer.Memory = GlobalBackbuffer.Memory;
@@ -625,46 +695,50 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		GameSoundBuffer.ReadyToWrite = ValidSound;
 		
 		uint max_controller_count = XUSER_MAX_COUNT;
-		if(max_controller_count > ArrayCount(new_input->gamepad_controller)) {
-			max_controller_count = ArrayCount(new_input->gamepad_controller);
+		if(max_controller_count > ArrayCount(new_input->gamepad_controller) - 1) {
+			max_controller_count = ArrayCount(new_input->gamepad_controller) - 1;
 		}
 		for(DWORD controller_index = 0; controller_index < max_controller_count; controller_index++) {
 			XINPUT_STATE controller_state;
-
-			gamepad_controller_input *new_controller = &new_input->gamepad_controller[controller_index];
-			gamepad_controller_input *old_controller = &old_input->gamepad_controller[controller_index];
+			DWORD TrueControllerIndex = controller_index + 1;
+			gamepad_controller_input *new_controller = GetController(new_input, TrueControllerIndex);
+			gamepad_controller_input *old_controller = GetController(old_input, TrueControllerIndex);
 
 			if(XInputGetState(controller_index, &controller_state) == ERROR_SUCCESS) {
-				// Controller connected.
+				// Colntroller connected.
+				new_controller->IsConnected = true;
 				// Controller input collection.
 				XINPUT_GAMEPAD *gamepad_state = &controller_state.Gamepad;
 				
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_UP, &old_controller->dpad_up, &new_controller->dpad_up);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_LEFT, &old_controller->dpad_left, &new_controller->dpad_left);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_DOWN, &old_controller->dpad_down, &new_controller->dpad_down);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_RIGHT, &old_controller->dpad_right, &new_controller->dpad_right);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_Y, &old_controller->y_button, &new_controller->y_button);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_X, &old_controller->x_button, &new_controller->x_button);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_A, &old_controller->a_button, &new_controller->a_button);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_B, &old_controller->b_button, &new_controller->b_button);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER, &old_controller->left_shoulder, &new_controller->left_shoulder);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_RIGHT_SHOULDER, &old_controller->right_shoulder, &new_controller->right_shoulder);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_START, &old_controller->start_button, &new_controller->start_button);
-				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_BACK, &old_controller->select_button, &new_controller->select_button);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_UP, &old_controller->DpadUp, &new_controller->DpadUp);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_LEFT, &old_controller->DpadLeft, &new_controller->DpadLeft);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_DOWN, &old_controller->DpadDown, &new_controller->DpadDown);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_DPAD_RIGHT, &old_controller->DpadRight, &new_controller->DpadRight);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_A, &old_controller->AButton, &new_controller->AButton);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_B, &old_controller->BButton, &new_controller->BButton);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_X, &old_controller->XButton, &new_controller->XButton);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_Y, &old_controller->YButton, &new_controller->YButton);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER, &old_controller->LeftShoulder, &new_controller->LeftShoulder);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_RIGHT_SHOULDER, &old_controller->RightShoulder, &new_controller->RightShoulder);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_START, &old_controller->StartButton, &new_controller->StartButton);
+				process_digital_button(gamepad_state->wButtons, XINPUT_GAMEPAD_BACK, &old_controller->SelectButton, &new_controller->SelectButton);
 
 				new_controller->is_analog = true;
 
-				new_controller->stick_start_x = old_controller->stick_end_x;
-				new_controller->stick_start_y = old_controller->stick_end_y;
+				new_controller->left_stick_average_x = process_analogic_stick(gamepad_state->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+				new_controller->left_stick_average_y = process_analogic_stick(gamepad_state->sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+				new_controller->right_stick_average_x = process_analogic_stick(gamepad_state->sThumbRX, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
+				new_controller->right_stick_average_y = process_analogic_stick(gamepad_state->sThumbRY, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
 				
-				// Normalizing stick range
-				float x_ = (gamepad_state->sThumbLX < 0) ? ((float)gamepad_state->sThumbLX / 32768.0f) : ((float)gamepad_state->sThumbLX / 32767.0f);
-				float y_ = (gamepad_state->sThumbLY < 0) ? ((float)gamepad_state->sThumbLY / 32768.0f) : ((float)gamepad_state->sThumbLY / 32767.0f);
-
-				new_controller->stick_min_x = new_controller->stick_max_x = new_controller->stick_end_x = x_;
-				new_controller->stick_min_y = new_controller->stick_max_y = new_controller->stick_end_y = y_;
+				float stick_action_threshold = 0.6f;
+				
+				process_digital_button((new_controller->left_stick_average_y > stick_action_threshold) ? 1 : 0, 1, &old_controller->LeftStickUp, &new_controller->LeftStickUp);
+				process_digital_button((new_controller->left_stick_average_x < -stick_action_threshold) ? 1 : 0, 1, &old_controller->LeftStickLeft, &new_controller->LeftStickLeft);
+				process_digital_button((new_controller->left_stick_average_y < -stick_action_threshold) ? 1 : 0, 1, &old_controller->LeftStickDown, &new_controller->LeftStickDown);
+				process_digital_button((new_controller->left_stick_average_x > stick_action_threshold) ? 1 : 0, 1, &old_controller->LeftStickRight, &new_controller->LeftStickRight);
 			}else {
 				// Controller not connected or error.
+				new_controller->IsConnected = false;
 			}
 		}
 		
@@ -715,4 +789,5 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 
 	return 0;
 }
+#pragma endregion
 #pragma endregion

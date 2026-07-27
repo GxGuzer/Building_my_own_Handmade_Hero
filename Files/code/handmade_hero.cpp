@@ -42,6 +42,7 @@ void RenderGrad(BitmapBuffer *Buffer, int XOffset, int YOffset) {
 
 static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *SoundBuffer, GameKeyboardState *KeyState, gamepad_input *input_) {
 	Assert(sizeof(GameState) <= Memory->PermanentSize);
+	Assert((&input_->gamepad_controller[0].LastButton - &input_->gamepad_controller[0].GamepadButton[0]) == (ArrayCount(input_->gamepad_controller[0].GamepadButton) - 1));
 
 	GameState *State = (GameState *)Memory->PermanentPtr;
 	if(!Memory->Initialized) {
@@ -57,60 +58,45 @@ static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *Soun
 		State->Sound.ToneHertz = 261;
 		Memory->Initialized = true;
 	}
-
-	if(KeyState->IsPressed) {
-		switch(KeyState->VirtualKeycode) {
-			case 'W':
-			{
+	
+	for(int ControllerIndex = 0; ControllerIndex < ArrayCount(input_->gamepad_controller); ControllerIndex++) {
+		gamepad_controller_input *CurrentController = GetController(input_, ControllerIndex);
+		bool UpAction = (CurrentController->DpadUp.EndedDown || CurrentController->AButton.EndedDown || CurrentController->LeftStickUp.EndedDown);
+		bool LeftAction = (CurrentController->DpadLeft.EndedDown || CurrentController->XButton.EndedDown || CurrentController->LeftStickLeft.EndedDown);
+		bool DownAction = (CurrentController->DpadDown.EndedDown || CurrentController->BButton.EndedDown || CurrentController->LeftStickDown.EndedDown);
+		bool RightAction = (CurrentController->DpadRight.EndedDown || CurrentController->YButton.EndedDown || CurrentController->LeftStickRight.EndedDown);
+		
+		if(CurrentController->is_analog) {
+			// Analog tuning.
+			State->Sound.ToneHertz = 261 + (int)(128.0f * CurrentController->left_stick_average_x);
+			State->Render.YOffset += (int)(4.0f * CurrentController->left_stick_average_y);
+		}else {
+			// Digital tuning.
+			if(UpAction) {
 				State->Render.YOffset -= State->Render.Speed;
 				if(State->Sound.ToneVolume < 40000) {
 					State->Sound.ToneVolume++;
 				}
 			}
-			break;
-
-			case 'A':
-			{
+			if(LeftAction) {
 				State->Render.XOffset -= State->Render.Speed;
 				if(State->Sound.ToneHertz > 65) {
 					State->Sound.ToneHertz--;
 				}
 			}
-			break;
-
-			case 'S':
-			{
+			if(DownAction) {
 				State->Render.YOffset += State->Render.Speed;
 				if(State->Sound.ToneVolume > 400) {
 					State->Sound.ToneVolume--;
 				}
 			}
-			break;
-
-			case 'D':
-			{
+			if(RightAction) {
 				State->Render.XOffset += State->Render.Speed;
 				if(State->Sound.ToneHertz < 1046) {
 					State->Sound.ToneHertz++;
 				}
 			}
-			break;
 		}
-	}
-	
-	gamepad_controller_input *input_0 = &input_->gamepad_controller[0];
-	if(input_0->is_analog) {
-		// Analog tuning.
-		State->Sound.ToneHertz = 261 + (int)(128.0f * input_0->stick_end_x);
-		State->Render.YOffset += (int)(4.0f * input_0->stick_end_y);
-	}else {
-		// Digital tuning.
-	}
-
-	// Input.AButtonEndedDown;
-	// Input.AButtonTransitionCount;
-	if(input_0->a_button.ended_down) {
-		State->Render.XOffset++;
 	}
 
 	RenderGrad(Buffer, State->Render.XOffset, State->Render.YOffset);

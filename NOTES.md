@@ -927,3 +927,14 @@ Casey uses it to target Windows XP with `/subsystem:windows,5.1` (the slash "/" 
 `/Gm` enables minimal builds, that is don't build what haven't changed, this is marked as deprecated and for removal, i think it's disabled by default, but a guaranteed disabled can be flagged with `/Gm-`.
 
 The optimization level can be set through the flags `/O1` which favors space, `/O2` which favors speed, and `/Od` which disables optimizations completely.
+
+# 21/07/2026
+
+## Functional function distinction
+
+Functional functions are functions that receives parameters, works on them, and outputs a result without changing any permanent state of the program.
+
+Non-functional functions are functions that receives references on its parameters, and works on them altering the permanent state of the program.
+
+Non-functional functions leads the programmer to know the structure of the program and what will be the effects of it.
+Functional functions are preferable, since it calls effect never changes.

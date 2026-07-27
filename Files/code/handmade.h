@@ -82,46 +82,59 @@ struct GameKeyboardState {
 	bool IsPressed;
 };
 
-struct gamepad_button_state {
-	int transition_count;
-	bool ended_down;
+struct GamepadButtonState {
+	int TransitionCount;
+	bool EndedDown;
 };
 
 struct gamepad_controller_input {
+	bool IsConnected;
+	
 	union {
-		gamepad_button_state gamepad_button[12];
+		GamepadButtonState GamepadButton[20];
 		struct {
-			gamepad_button_state dpad_up;
-			gamepad_button_state dpad_left;
-			gamepad_button_state dpad_down;
-			gamepad_button_state dpad_right;
-			gamepad_button_state y_button;
-			gamepad_button_state x_button;
-			gamepad_button_state a_button;
-			gamepad_button_state b_button;
-			gamepad_button_state left_shoulder;
-			gamepad_button_state right_shoulder;
-			gamepad_button_state start_button;
-			gamepad_button_state select_button;
+			GamepadButtonState StartButton;
+			GamepadButtonState SelectButton;
+			GamepadButtonState DpadUp;
+			GamepadButtonState DpadLeft;
+			GamepadButtonState DpadDown;
+			GamepadButtonState DpadRight;
+			GamepadButtonState AButton;
+			GamepadButtonState BButton;
+			GamepadButtonState XButton;
+			GamepadButtonState YButton;
+			GamepadButtonState LeftShoulder;
+			GamepadButtonState RightShoulder;
+			GamepadButtonState LeftStickUp;
+			GamepadButtonState LeftStickLeft;
+			GamepadButtonState LeftStickDown;
+			GamepadButtonState LeftStickRight;
+			GamepadButtonState RightStickUp;
+			GamepadButtonState RightStickLeft;
+			GamepadButtonState RightStickDown;
+			union {
+				GamepadButtonState RightStickRight;
+				GamepadButtonState LastButton;
+			};
 		};
 	};
 
 	bool is_analog;
+	
+	float left_stick_average_x;
+	float left_stick_average_y;
+	float right_stick_average_x;
+	float right_stick_average_y;
 
 	char left_trigger;
 	char right_trigger;
-
-	float stick_start_x;
-	float stick_min_x;
-	float stick_max_x;
-	float stick_end_x;
-
-	float stick_start_y;
-	float stick_min_y;
-	float stick_max_y;
-	float stick_end_y;
 };
 
 struct gamepad_input {
-	gamepad_controller_input gamepad_controller[4];
+	gamepad_controller_input gamepad_controller[5];
 };
+
+inline gamepad_controller_input *GetController(gamepad_input *GamepadInput, int GamepadIndex) {
+	Assert(GamepadIndex < ArrayCount(GamepadInput->gamepad_controller));
+	return &GamepadInput->gamepad_controller[GamepadIndex];
+}

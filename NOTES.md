@@ -938,3 +938,35 @@ Non-functional functions are functions that receives references on its parameter
 
 Non-functional functions leads the programmer to know the structure of the program and what will be the effects of it.
 Functional functions are preferable, since it calls effect never changes.
+
+# 31/07/2026
+
+## Frame rate explained
+
+Whenever we start our game, the first frame is actually silent blackness, and that's because the window is booting up, preparing buffers, and such to display the first visible frame. That slient black frame can be any arbitrary duration (as long as it's unnoticeable) since it isn't a glitch, it's just start up.
+
+However, after that, we display the first visible frame that was calculated during that black silent frame, and while displaying the first visible frame, we calculate the next frame to be displayed. That said, we must ensure that the image and sound are computed according to the timing of the frame rate (33ms for 30 FPS, and 16ms for 60 FPS). Images are simple, due to our own brains filling in the gaps, showing a static images for a such small amount of time, will give the sensation of animation. Sound is different, when a sound is off, our brains can't really produce an *"animation illusion"*.
+
+Because of that, we must ensure that image and sound are align, so to not create any weird sensation on the user and make the game run rightfully. To summarize, we must ensure that the sound corresponds correctly to the frame being displayed, not late nor early.
+
+## Audio rate options
+
+As said before, audio is actually unpleasing when lagged, so we need to ensure a smooth audio. There are some ways to have a smooth audio, some can be packed as one method.
+
+The first, is to always hit our audio. That is guarantee that the audio will be correctly filled before the frame clip so it doesn't stutter, if for some reason we fail, we just roll back our performance, f.e. instead of 60 FPS we perform on 30 FPS, if we detect the lag.
+
+The second is to write the frame ahead. That is firstly write two frames, and then if we keep succeeding we just write the frame ahead, if we miss then we write two frames again. But this interval doesn't haave to be a frame ahead, it could be a half, or a quarter, then if we miss, we write the remaining of the frame, and the next part ahead.
+
+The third is to overwrite the next frame if we hit our frame constraint. That is kind of mixed with the second, to process a frame or a part of a frame ahead, and then if we are in time within the frame, we overwrite the frame ahead like nothing has happened.
+
+The last is to have a guard thread. That will overwrite our audio buffer if our main thread misses a frame, sort of a guard rail.
+
+Now, the first three methods, can be implemented as one. A game can be designed to never miss, but if happens to miss, before rolling back the performance, it makes uses of the next part written, and overwrite the next part on hits.
+
+# 03/08/2026
+
+## Using sleep to enforce framerate
+
+To not waste CPU time while waiting for something (like ensuring constant frame rate), we should use the `Sleep()` functon. That function sleeps your program for a specified amount of miliseconds. However, that amount can't be less than the CPU scheduler granularity, since the CPU scheduler has a interruptor nature, it will *"be called"* once a while, so if the specified time to sleep is less than the granularity, the program will only wake up after that granularity (f.e. if the granularity is 15ms and sleep is set to 2ms, the thread will sleep for 15ms).
+
+The granularity of the CPU scheduler can be set with the `timeBeginPeriod()` function by passing the granular period in miliseconds as a parameter. Windows documents explicity warns that every `timeBeginPeriod()` must have a `timeEndPeriod()` match.

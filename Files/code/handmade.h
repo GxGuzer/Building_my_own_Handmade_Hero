@@ -1,9 +1,19 @@
-typedef unsigned char uchar;
-typedef unsigned short ushort;
-typedef unsigned int uint;
-typedef unsigned long ulong;
-typedef long long llong;
-typedef unsigned long long ullong;
+#include <stdint.h>
+
+typedef uint8_t  nat8;
+typedef uint16_t nat16;
+typedef uint32_t nat32;
+typedef uint64_t nat64;
+
+typedef int8_t   int8;
+typedef int16_t  int16;
+typedef int32_t  int32;
+typedef int64_t  int64;
+
+typedef float    rat32;
+typedef double   rat64;
+
+typedef int32    bool32;
 
 #define Assert(Expression) if(!(Expression)) { \
 	*(int *)0 = 0; \
@@ -16,9 +26,9 @@ typedef unsigned long long ullong;
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
-uint Truncate64bitsTo32bits(ullong UInt64) {
+nat32 Truncate64bitsTo32bits(nat64 UInt64) {
 	Assert(UInt64 <= 0xFFFFFFFF);
-	return (uint)UInt64;
+	return (nat32)UInt64;
 }
 
 #pragma region OS to Game
@@ -28,11 +38,11 @@ IMPORTANT: These functions aren't protective and should not be present on the en
 	For example, the write may be interrupted mid writing thus leading to a corrupt file.
 */
 struct DEBUG_FileRead {
-	uint FileSize;
+	nat32 FileSize;
 	void *FileContent;
 };
 static DEBUG_FileRead DEBUG_ReadFile(char *FileName);
-static bool DEBUG_WriteFile(char *FileName, uint MemorySize, void *Memory);
+static bool32 DEBUG_WriteFile(char *FileName, nat32 MemorySize, void *Memory);
 static void DEBUG_FreeFileMemory(void *Memory);
 #pragma endregion
 
@@ -41,54 +51,54 @@ static void DEBUG_FreeFileMemory(void *Memory);
 #pragma endregion
 
 struct GameMemory {
-	bool Initialized;
-	ullong PermanentSize;
+	bool32 Initialized;
+	nat64 PermanentSize;
 	void *PermanentPtr; // Memory is required to be initialized to zero, it must be done if the platform layer doesn't do it.
-	ullong VolatileSize;
+	nat64 VolatileSize;
 	void *VolatilePtr;
 };
 
 struct GameState {
 	struct {
-		int XOffset;
-		int YOffset;
-		int Speed;
+		int32 XOffset;
+		int32 YOffset;
+		int32 Speed;
 	} Render;
 	struct {
-		short ToneVolume;
-		int ToneHertz;
+		int16 ToneVolume;
+		int32 ToneHertz;
 	} Sound;
 };
 
 struct SoundBuffer {
-	int SamplesPerSecond;
-	int SampleCount;
-	short *SampleOut;
-	bool ReadyToWrite;
+	int32 SamplesPerSecond;
+	int32 SampleCount;
+	int16 *SampleOut;
+	bool32 ReadyToWrite;
 };
 
 struct BitmapBuffer {
 	void *Memory;
-	int Width;
-	int Height;
-	int BytePerPixel;
-	int Pitch;
+	int32 Width;
+	int32 Height;
+	int32 BytePerPixel;
+	int32 Pitch;
 };
 
 struct GameKeyboardState {
-	uint VirtualKeycode;
-	bool WithAlt;
-	bool WasPressed;
-	bool IsPressed;
+	nat32 VirtualKeycode;
+	bool32 WithAlt;
+	bool32 WasPressed;
+	bool32 IsPressed;
 };
 
 struct GamepadButtonState {
-	int TransitionCount;
-	bool EndedDown;
+	int32 TransitionCount;
+	bool32 EndedDown;
 };
 
 struct gamepad_controller_input {
-	bool IsConnected;
+	bool32 IsConnected;
 	
 	union {
 		GamepadButtonState GamepadButton[20];
@@ -112,29 +122,30 @@ struct gamepad_controller_input {
 			GamepadButtonState RightStickUp;
 			GamepadButtonState RightStickLeft;
 			GamepadButtonState RightStickDown;
-			union {
-				GamepadButtonState RightStickRight;
-				GamepadButtonState LastButton;
-			};
+			GamepadButtonState RightStickRight;
+			
+			// All buttons must be above Terminator.
+			
+			GamepadButtonState Terminator;
 		};
 	};
 
-	bool is_analog;
+	bool32 is_analog;
 	
-	float left_stick_average_x;
-	float left_stick_average_y;
-	float right_stick_average_x;
-	float right_stick_average_y;
+	rat32 left_stick_average_x;
+	rat32 left_stick_average_y;
+	rat32 right_stick_average_x;
+	rat32 right_stick_average_y;
 
-	char left_trigger;
-	char right_trigger;
+	int8 left_trigger;
+	int8 right_trigger;
 };
 
 struct gamepad_input {
 	gamepad_controller_input gamepad_controller[5];
 };
 
-inline gamepad_controller_input *GetController(gamepad_input *GamepadInput, int GamepadIndex) {
+inline gamepad_controller_input *GetController(gamepad_input *GamepadInput, int32 GamepadIndex) {
 	Assert(GamepadIndex < ArrayCount(GamepadInput->gamepad_controller));
 	return &GamepadInput->gamepad_controller[GamepadIndex];
 }

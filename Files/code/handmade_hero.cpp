@@ -1,19 +1,19 @@
 #include "handmade.h"
 
-void SoundOutput(SoundBuffer *SoundBuffer, int ToneHertz, short ToneVolume) {
-	short *SampleOut = SoundBuffer->SampleOut;
+void SoundOutput(SoundBuffer *SoundBuffer, int32 ToneHertz, int16 ToneVolume) {
+	int16 *SampleOut = SoundBuffer->SampleOut;
 
-	static float t = 0;
-	int WavePeriod = SoundBuffer->SamplesPerSecond / ToneHertz;
+	static rat32 t = 0;
+	int32 WavePeriod = SoundBuffer->SamplesPerSecond / ToneHertz;
 
 	if(SoundBuffer->ReadyToWrite) {
-		for(int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; SampleIndex++) {
-			float SineValue = sinf(t);
-			short SampleValue = (short)(SineValue * ToneVolume);
+		for(int32 SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; SampleIndex++) {
+			rat32 SineValue = sinf(t);
+			int16 SampleValue = (int16)(SineValue * ToneVolume);
 			*SampleOut++ = SampleValue;
 			*SampleOut++ = SampleValue;
 
-			t += 2.0f*PI / (float)WavePeriod;
+			t += 2.0f*PI / (rat32)WavePeriod;
 			if(t > 2.0f*PI) {
 				t -= 2.0f*PI;
 			}
@@ -21,16 +21,16 @@ void SoundOutput(SoundBuffer *SoundBuffer, int ToneHertz, short ToneVolume) {
 	}
 }
 
-void RenderGrad(BitmapBuffer *Buffer, int XOffset, int YOffset) {
+void RenderGrad(BitmapBuffer *Buffer, int32 XOffset, int32 YOffset) {
 
-	uchar *Row = (uchar *)Buffer->Memory;
-	for (int Y = 0; Y < Buffer->Height; Y++) {
-		uint *Pixel = (uint *)Row;
-		for (int X = 0; X < Buffer->Width; X++) {
+	nat8 *Row = (nat8 *)Buffer->Memory;
+	for (int32 Y = 0; Y < Buffer->Height; Y++) {
+		nat32 *Pixel = (nat32 *)Row;
+		for (int32 X = 0; X < Buffer->Width; X++) {
 			
-			uchar Red = (uchar)(X + XOffset);
-			uchar Green = (uchar)(Y + YOffset);
-			uchar Blue = 0;
+			nat8 Red = (nat8)(X + XOffset);
+			nat8 Green = (nat8)(Y + YOffset);
+			nat8 Blue = 0;
 
 			*Pixel = ((Red << 16) | (Green << 8) | Blue);
 			*Pixel++;
@@ -42,7 +42,7 @@ void RenderGrad(BitmapBuffer *Buffer, int XOffset, int YOffset) {
 
 static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *SoundBuffer, GameKeyboardState *KeyState, gamepad_input *input_) {
 	Assert(sizeof(GameState) <= Memory->PermanentSize);
-	Assert((&input_->gamepad_controller[0].LastButton - &input_->gamepad_controller[0].GamepadButton[0]) == (ArrayCount(input_->gamepad_controller[0].GamepadButton) - 1));
+	Assert((&input_->gamepad_controller[0].Terminator - &input_->gamepad_controller[0].GamepadButton[0]) == ArrayCount(input_->gamepad_controller[0].GamepadButton));
 
 	GameState *State = (GameState *)Memory->PermanentPtr;
 	if(!Memory->Initialized) {
@@ -59,17 +59,17 @@ static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *Soun
 		Memory->Initialized = true;
 	}
 	
-	for(int ControllerIndex = 0; ControllerIndex < ArrayCount(input_->gamepad_controller); ControllerIndex++) {
+	for(int32 ControllerIndex = 0; ControllerIndex < ArrayCount(input_->gamepad_controller); ControllerIndex++) {
 		gamepad_controller_input *CurrentController = GetController(input_, ControllerIndex);
-		bool UpAction = (CurrentController->DpadUp.EndedDown || CurrentController->AButton.EndedDown || CurrentController->LeftStickUp.EndedDown);
-		bool LeftAction = (CurrentController->DpadLeft.EndedDown || CurrentController->XButton.EndedDown || CurrentController->LeftStickLeft.EndedDown);
-		bool DownAction = (CurrentController->DpadDown.EndedDown || CurrentController->BButton.EndedDown || CurrentController->LeftStickDown.EndedDown);
-		bool RightAction = (CurrentController->DpadRight.EndedDown || CurrentController->YButton.EndedDown || CurrentController->LeftStickRight.EndedDown);
+		bool32 UpAction = (CurrentController->DpadUp.EndedDown || CurrentController->AButton.EndedDown || CurrentController->LeftStickUp.EndedDown);
+		bool32 LeftAction = (CurrentController->DpadLeft.EndedDown || CurrentController->XButton.EndedDown || CurrentController->LeftStickLeft.EndedDown);
+		bool32 DownAction = (CurrentController->DpadDown.EndedDown || CurrentController->BButton.EndedDown || CurrentController->LeftStickDown.EndedDown);
+		bool32 RightAction = (CurrentController->DpadRight.EndedDown || CurrentController->YButton.EndedDown || CurrentController->LeftStickRight.EndedDown);
 		
 		if(CurrentController->is_analog) {
 			// Analog tuning.
-			State->Sound.ToneHertz = 261 + (int)(128.0f * CurrentController->left_stick_average_x);
-			State->Render.YOffset += (int)(4.0f * CurrentController->left_stick_average_y);
+			State->Sound.ToneHertz = 261 + (int32)(128.0f * CurrentController->left_stick_average_x);
+			State->Render.YOffset += (int32)(4.0f * CurrentController->left_stick_average_y);
 		}else {
 			// Digital tuning.
 			if(UpAction) {

@@ -5,10 +5,7 @@
 
 #include "handmade_hero.cpp"
 
-#include <Windows.h>
-#include <Xinput.h>
-#include <xaudio2.h>
-#include <dsound.h>
+#include "win32_handmade.h"
 //TODO: Make a console "catch" for errors.
 //TODO: Make a debug console with iostream.
 
@@ -24,21 +21,8 @@ bool Running = false;
 */
 
 // Bitmap variables and functions.
-struct Win32BitmapBuffer {
-	BITMAPINFO Info;
-	void *Memory;
-	int32 Width;
-	int32 Height;
-	int32 BytePerPixel;
-	int32 Pitch;
-};
 
 static Win32BitmapBuffer GlobalBackbuffer;
-
-struct ClientWindowDimension {
-	int32 Width;
-	int32 Height;
-};
 
 ClientWindowDimension GetClientWindowDimension(HWND WindowHandle) {
 	ClientWindowDimension Result;
@@ -114,8 +98,6 @@ static void DisplayBuffer(HDC DeviceContext, int32 WindowWidth, int32 WindowHeig
 
 LPDIRECTSOUNDBUFFER GlobalSecondarySoundBuffer;
 
-typedef HRESULT WINAPI MyDirectSoundCreateFunction(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter);
-
 // Load the sound library and creates sound buffers if succeed.
 static void LoadSoundLib(HWND WindowHandle, int32 BufferSize, int32 SamplesPerSecond) {
 	// TODO: Make the first attempt of sound be with the modern sound API (XAudio2).
@@ -189,21 +171,6 @@ static void LoadSoundLib(HWND WindowHandle, int32 BufferSize, int32 SamplesPerSe
 
 	// Start playing.
 }
-
-// Stuff for audio.
-struct SoundOutputConfig {
-	int32 SamplePerSeconds;
-	int32 BytesPerSample;
-	int32 BytesPerSeconds;
-	int32 BufferSeconds;
-	int32 BufferSize;
-	int32 ChunkSize;
-	int32 ChunkCount;
-	int32 ChunkIndex;
-	nat32 LastChunk;
-	nat32 RunningSampleIndex; // maybe useless.
-	bool SoundIsPlaying;
-};
 
 static void ClearSoundBuffer(SoundOutputConfig *SoundOutputConfig) {
 	void *FirstWriteRegionPointer;
@@ -554,6 +521,30 @@ inline rat32 GetMilisecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End) {
 	return (rat32)((1000.0f * (End.QuadPart - Start.QuadPart)) / CountFrequency);
 }
 
+static void DEBUG_DrawVerticalLine(rat32 Coefficient, DWORD CursorMarker, Win32BitmapBuffer *Backbuffer, int XPadding, int YPadding, nat32 Color) {
+	int X = ((int)(Coefficient * (rat32)(CursorMarker)) + XPadding);
+	int Top = YPadding;
+	int Bottom = (Backbuffer->Height - YPadding);
+	
+	nat8 *Pixel = ((nat8 *)(Backbuffer->Memory) + (X * Backbuffer->BytePerPixel) + (Top * Backbuffer->Pitch));
+	
+	for(int Y = Top; Y < Bottom; Y++) {
+		*(nat32 *)Pixel = Color;
+		Pixel += Backbuffer->Pitch;
+	}
+}
+
+static void DEBUG_DisplayAudioImageSync(Win32BitmapBuffer *Backbuffer, DEBUG_SoundCursorMarkers *CursorMarkers, int CursorMarkerArraySize, SoundOutputConfig *SoundConfig, rat32 TargetMSPerFrame) {
+	int XPadding = 16;
+	int YPadding = 16;
+	
+	rat32 Coefficient = ((rat32)(Backbuffer->Width - (XPadding * 2)) / (rat32)(SoundConfig->BufferSize));
+	for(int MarkerIndex = 0; MarkerIndex < CursorMarkerArraySize; MarkerIndex++) {
+		DEBUG_DrawVerticalLine(Coefficient, CursorMarkers[MarkerIndex].DEBUG_PlayCursor, Backbuffer, XPadding, YPadding, 0xFFFFFFFF);
+		DEBUG_DrawVerticalLine(Coefficient, CursorMarkers[MarkerIndex].DEBUG_WriteCursor, Backbuffer, XPadding, YPadding, 0xFF0000FF);
+	}
+}
+
 #pragma endregion
 
 #pragma region MAIN
@@ -577,7 +568,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		// Class not initialized, ERROR CATCH.
 	}
 
-	HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 100, 100, 640, 480, 0, 0, Instance, 0);
+	HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, 1472, 828, 0, 0, Instance, 0);
 
 	if(HandmadeHeroWindow) {
 		Running = true;
@@ -591,8 +582,8 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	QueryPerformanceFrequency(&PerformanceFrequency);
 	CountFrequency = PerformanceFrequency.QuadPart;
 	LARGE_INTEGER LastCount = GetSystemTimeStamp();
-	int32 DisplayRefreshRate = 120; // in HZ. TODO: Actually get the device refresh rate.
-	int32 GameRefreshRate = DisplayRefreshRate / 2;
+	#define DisplayRefreshRate 120 // in HZ. TODO: Actually get the device refresh rate.
+	#define GameRefreshRate (DisplayRefreshRate / 2)
 	rat32 TargetMSPerFrame = 1000.0f / GameRefreshRate;
 	
 	nat64 LastCycleCount = __rdtsc();
@@ -649,12 +640,13 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	}else {
 		// TODO: ERROR CATCH?
 	}
-
+	
+	int DEBUG_MarkerIndex = 0;
+	DEBUG_SoundCursorMarkers DEBUG_LastSCMarkers[GameRefreshRate / 2] = {};
+	
 	#pragma region RUNNING
 	// While loop controled by a bool to keep the program running, because `PeekMessage` gets outta the loop when there are no messages.
 	while(Running) {
-		
-		LARGE_INTEGER RenderStart = GetSystemTimeStamp();
 		
 		BitmapBuffer GameBuffer = {};
 		GameBuffer.Memory = GlobalBackbuffer.Memory;
@@ -662,8 +654,6 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		GameBuffer.Height = GlobalBackbuffer.Height;
 		GameBuffer.BytePerPixel = GlobalBackbuffer.BytePerPixel;
 		GameBuffer.Pitch = GlobalBackbuffer.Pitch;
-		
-		rat32 RenderTime = GetMilisecondsElapsed(RenderStart, GetSystemTimeStamp());
 		
 		/*
 		SOUND BUFFER PLAN:
@@ -680,8 +670,6 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		// Probably put LOW_BOUNDARY = BUFFER_SIZE and HIGH_BOUNDARY = 0 to make the whole buffer valid at first.
 		```
 		*/
-		
-		LARGE_INTEGER SoundStart = GetSystemTimeStamp();
 		
 		// WARNING: Sound logic will be remade for the new frame loop.
 		
@@ -705,15 +693,13 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 			}
 		}
 		
+		// NOTE: Sound stutter has become inconclusive, it seems all fine, and the stutter is caused by the machine itself. I need to investigate further.
+		
 		SoundBuffer GameSoundBuffer = {};
 		GameSoundBuffer.SamplesPerSecond = SoundConfig.SamplePerSeconds;
 		GameSoundBuffer.SampleCount = WriteRegionLength / SoundConfig.BytesPerSample;
 		GameSoundBuffer.SampleOut = SoundBufferPointer;
 		GameSoundBuffer.ReadyToWrite = ValidSound;
-		
-		rat32 SoundTime = GetMilisecondsElapsed(SoundStart, GetSystemTimeStamp());
-		
-		LARGE_INTEGER InputStart = GetSystemTimeStamp();
 		
 		gamepad_controller_input *NewKeyboardController = &new_input->gamepad_controller[0];
 		gamepad_controller_input *OldKeyboardController = &old_input->gamepad_controller[0];
@@ -779,22 +765,17 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 			}
 		}
 		
-		rat32 InputTime = GetMilisecondsElapsed(InputStart, GetSystemTimeStamp());
-		
-		LARGE_INTEGER UpdateStart = GetSystemTimeStamp();
-		
 		GameMain(&GameMemory, &GameBuffer, &GameSoundBuffer, &KeyInput, new_input);
 		
-		LARGE_INTEGER EndCount = GetSystemTimeStamp();
-		rat32 TimeComputingInMiliseconds = GetMilisecondsElapsed(LastCount, EndCount);
+		rat32 TimeComputingInMiliseconds = GetMilisecondsElapsed(LastCount, GetSystemTimeStamp());
 		
 		rat32 TotalTimeElapsedInMiliseconds = TimeComputingInMiliseconds;
 		if(TotalTimeElapsedInMiliseconds < TargetMSPerFrame) {
 			while(TotalTimeElapsedInMiliseconds < TargetMSPerFrame) {
 				if(SleepIsPrecise) {
-					rat32 SleepTime = TargetMSPerFrame - TotalTimeElapsedInMiliseconds;
+					DWORD SleepTime = (DWORD)(TargetMSPerFrame - TotalTimeElapsedInMiliseconds - 1.0f); // NOTE: Without subtraction, the program seems to sleep too much.
 					if(SleepTime > 0) {
-						Sleep((DWORD)SleepTime);
+						Sleep(SleepTime);
 					}
 				}
 				TotalTimeElapsedInMiliseconds = GetMilisecondsElapsed(LastCount, GetSystemTimeStamp());
@@ -804,11 +785,21 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 			// ERROR CATCH!
 		}
 		
+		LastCount = GetSystemTimeStamp();
 		rat32 FPS = 1.0f / (TotalTimeElapsedInMiliseconds / 1000.0f);
 		
 		HDC DeviceContext = GetDC(HandmadeHeroWindow);
 		ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(HandmadeHeroWindow);
+		DEBUG_DisplayAudioImageSync(&GlobalBackbuffer, DEBUG_LastSCMarkers, ArrayCount(DEBUG_LastSCMarkers), &SoundConfig, TargetMSPerFrame);
 		DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer);
+		
+		// DEBUG Image and audio sync.
+		GlobalSecondarySoundBuffer->GetCurrentPosition(&DEBUG_LastSCMarkers[DEBUG_MarkerIndex].DEBUG_PlayCursor, &DEBUG_LastSCMarkers[DEBUG_MarkerIndex].DEBUG_WriteCursor);
+		DEBUG_MarkerIndex++;
+		if(DEBUG_MarkerIndex >= ArrayCount(DEBUG_LastSCMarkers)) {
+			DEBUG_MarkerIndex = 0;
+		}
+		Assert(DEBUG_MarkerIndex < ArrayCount(DEBUG_LastSCMarkers));
 
 		if(ValidSound) {
 			FillSoundBuffer(&SoundConfig, WriteRegionOffset, WriteRegionLength, &GameSoundBuffer);
@@ -822,27 +813,19 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		gamepad_input *temp_ = new_input;
 		new_input = old_input;
 		old_input = temp_;
-		
-		LARGE_INTEGER UpdateEnd = GetSystemTimeStamp();
-		rat32 UpdateTime = GetMilisecondsElapsed(UpdateStart, UpdateEnd);
 
-		// END PROCESS ####################################################################################################
+		// END PROCESS ########################################################################################
 
 		// Performance counting and display.
-
-		// TODO: Log the timing of each critical progress (render, audio, input).
-		// TODO: Debug what is taking so much time to process.
 		
 		nat64 EndCycleCount = __rdtsc();
 		nat64 CyclesPassed = EndCycleCount - LastCycleCount;
 		rat32 MegaCyclesPerFrame = (rat32)(CyclesPassed) / (1000.0f * 1000.0f);
+		LastCycleCount = EndCycleCount;
 		
 		char StringBuffer[1024];
-		sprintf(StringBuffer, "Time per frame: %.03fms Time computing: %.03fms \nFPS: %.03f MCPF: %.03f\nR: %.03f S: %.03f I: %.03f U: %.03f\n", TotalTimeElapsedInMiliseconds, TimeComputingInMiliseconds, FPS, MegaCyclesPerFrame, RenderTime, SoundTime, InputTime, UpdateTime); // WARNNG: This type of string outputting is problematic, it assumes a long enough buffer and the formats may access what it shouldn't on the stack.
+		sprintf(StringBuffer, "Time per frame: %.03fms Time computing: %.03fms \nFPS: %.03f MCPF: %.03f Input: %0.3fms\n", TotalTimeElapsedInMiliseconds, TimeComputingInMiliseconds, FPS, MegaCyclesPerFrame, InputTime); // WARNNG: This type of string outputting is problematic, it assumes a long enough buffer and the formats may access what it shouldn't on the stack.
 		OutputDebugString(StringBuffer);
-		
-		LastCount = EndCount;
-		LastCycleCount = EndCycleCount;
 	}
 	timeEndPeriod(TargetSchedulerGranularity);
 	return 0;

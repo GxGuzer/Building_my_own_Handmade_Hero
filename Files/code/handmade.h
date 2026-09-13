@@ -58,22 +58,28 @@ struct GameMemory {
 	void *VolatilePtr;
 };
 
+struct RenderState {
+	int32 XOffset;
+	int32 YOffset;
+	int32 Speed;
+};
+
+struct SoundState {
+	int32 ToneHertz;
+	nat16 ToneVolume;
+};
+
 struct GameState {
-	struct {
-		int32 XOffset;
-		int32 YOffset;
-		int32 Speed;
-	} Render;
-	struct {
-		int16 ToneVolume;
-		int32 ToneHertz;
-	} Sound;
+	RenderState Render;
+	SoundState Sound;
 };
 
 struct SoundBuffer {
 	int32 SamplesPerSecond;
 	int32 SampleCount;
 	int16 *SampleOut;
+	int16 *LastByte;
+	nat32 SampleIndex;
 	bool32 ReadyToWrite;
 };
 
@@ -98,8 +104,6 @@ struct GamepadButtonState {
 };
 
 struct gamepad_controller_input {
-	bool32 IsConnected;
-	
 	union {
 		GamepadButtonState GamepadButton[20];
 		struct {
@@ -129,7 +133,8 @@ struct gamepad_controller_input {
 			GamepadButtonState Terminator;
 		};
 	};
-
+	
+	bool32 IsConnected;
 	bool32 is_analog;
 	
 	rat32 left_stick_average_x;

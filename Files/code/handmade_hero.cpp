@@ -1,22 +1,20 @@
 #include "handmade.h"
 
-void SoundOutput(SoundBuffer *SoundBuffer, int32 ToneHertz, int16 ToneVolume) {
+void SineOutput(SoundBuffer *SoundBuffer, int32 ToneHertz, nat16 ToneVolume) {
+	
 	int16 *SampleOut = SoundBuffer->SampleOut;
-
-	static rat32 t = 0;
 	int32 WavePeriod = SoundBuffer->SamplesPerSecond / ToneHertz;
-
-	if(SoundBuffer->ReadyToWrite) {
-		for(int32 SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; SampleIndex++) {
-			rat32 SineValue = sinf(t);
-			int16 SampleValue = (int16)(SineValue * ToneVolume);
-			*SampleOut++ = SampleValue;
-			*SampleOut++ = SampleValue;
-
-			t += 2.0f*PI / (rat32)WavePeriod;
-			if(t > 2.0f*PI) {
-				t -= 2.0f*PI;
-			}
+	static rat32 t = 0;
+	
+	for(int32 SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; SampleIndex++) {
+		rat32 SineValue = sinf(t);
+		int16 SampleValue = (int16)(SineValue * ToneVolume);
+		*SampleOut++ = SampleValue;
+		*SampleOut++ = SampleValue;
+		
+		t += 2.0f*PI / (rat32)(WavePeriod);
+		if(t > 2.0f*PI) {
+			t -= 2.0f*PI;
 		}
 	}
 }
@@ -40,7 +38,7 @@ void RenderGrad(BitmapBuffer *Buffer, int32 XOffset, int32 YOffset) {
 	}
 }
 
-static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *SoundBuffer, GameKeyboardState *KeyState, gamepad_input *input_) {
+static void GameUpdate(GameMemory *Memory, BitmapBuffer *Buffer, GameKeyboardState *KeyState, gamepad_input *input_) {
 	Assert(sizeof(GameState) <= Memory->PermanentSize);
 	Assert((&input_->gamepad_controller[0].Terminator - &input_->gamepad_controller[0].GamepadButton[0]) == ArrayCount(input_->gamepad_controller[0].GamepadButton));
 
@@ -74,7 +72,7 @@ static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *Soun
 			// Digital tuning.
 			if(UpAction) {
 				State->Render.YOffset -= State->Render.Speed;
-				if(State->Sound.ToneVolume < 40000) {
+				if(State->Sound.ToneVolume < 60000) {
 					State->Sound.ToneVolume++;
 				}
 			}
@@ -86,7 +84,7 @@ static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *Soun
 			}
 			if(DownAction) {
 				State->Render.YOffset += State->Render.Speed;
-				if(State->Sound.ToneVolume > 400) {
+				if(State->Sound.ToneVolume > 600) {
 					State->Sound.ToneVolume--;
 				}
 			}
@@ -100,5 +98,14 @@ static void GameMain(GameMemory *Memory, BitmapBuffer *Buffer, SoundBuffer *Soun
 	}
 
 	RenderGrad(Buffer, State->Render.XOffset, State->Render.YOffset);
-	SoundOutput(SoundBuffer, State->Sound.ToneHertz, State->Sound.ToneVolume);
+}
+
+static void GameSoundOutput(GameMemory *Memory, SoundBuffer *Buffer) {
+	GameState *State = (GameState *)Memory->PermanentPtr;
+	if(!Memory->Initialized) {
+		State->Sound.ToneVolume = 4000;
+		State->Sound.ToneHertz = 261;
+	}
+	
+	SineOutput(Buffer, State->Sound.ToneHertz, State->Sound.ToneVolume);
 }

@@ -970,3 +970,66 @@ Now, the first three methods, can be implemented as one. A game can be designed 
 To not waste CPU time while waiting for something (like ensuring constant frame rate), we should use the `Sleep()` functon. That function sleeps your program for a specified amount of miliseconds. However, that amount can't be less than the CPU scheduler granularity, since the CPU scheduler has a interruptor nature, it will *"be called"* once a while, so if the specified time to sleep is less than the granularity, the program will only wake up after that granularity (f.e. if the granularity is 15ms and sleep is set to 2ms, the thread will sleep for 15ms).
 
 The granularity of the CPU scheduler can be set with the `timeBeginPeriod()` function by passing the granular period in miliseconds as a parameter. Windows documents explicity warns that every `timeBeginPeriod()` must have a `timeEndPeriod()` match.
+
+# 26/08/2026
+
+## Audio latency issue.
+
+Audio hardware might have incredibly high latency (mine has 30ms) in which makes the audio to be delayed for 3 or 4 frames in order to be outputted correctly.
+
+A strategy to get the most synchronized audio possible is to switch the output method accordingly to the current latency. For example: if the sound is very latent (f.e. ~5ms), we output the audio so it's exactly on a frame flip, thus making just one frame behind; if the sound is not that latent (>16ms), we output the audio as soon as possible, making it desync, but with the lowest latency possible (around 2 or 3 frames).
+
+# 07/09/2026
+
+## Audio output on different latencies simplified
+
+Basically, when we query the play and write cursors within a frame, we check the distance of them and the frame flip. If, based on the play cursor, the write cursor is before the frame flip, that means our sound is latent, and we can push where we write to up to the frame boundary, so we be on sync. If the write cursor is after the frame flip, that means our sound is non-latent, and we must output the sound as soon as possible.
+
+### Low latency case
+
+On low latency, we get the position of the cursors, project the write cursor one frame ahead, and add up the remaining distance up to the frame boundary.
+
+So `TargetCursor` is going to be calculated like this:
+```
+WriteCursorOnNextFrame = CurrentSoundWriteCursor + SamplesPerFrame;
+DistanceToNextFrame = SamplesPerFrame - (WriteCursorOnNextFrame % SamplePerFrame);
+TargetCursor = WriteCursorOnNextFrame + DistanceToNextFrame;
+```
+```
+Frame:
+0          1           2           3
+|-|---|----|------|----|-----------|----------->
+  P   W           NW   T
+First write from W to T, then one whole frame will always be written.
+```
+
+### High latency case
+
+On high latency, we get the position of the cursor, project the write cursor one frame ahead, and write from the current cursor up to that projected cursor plus a safety margin.
+
+So `TargetCursor is going to be calculated like this:
+```
+WriteCursorOnNextFrame = CurrentSoundWriteCursor + SamplesPerFrame;
+TargetCursor = WriteCursorOnNextFrame + SafetySamples;
+```
+```
+Frame:
+0          1           2           3
+|-|--------|--|--------|--||-------|----------->
+  P           W           |T
+                          NW
+Sound is always written from W to T.
+```
+
+## Summary on writing to the sound buffer.
+
+- Get the cursors position.
+- From the play cursor, estimate where the frame flip will happen relative to the sound buffer.
+- The frame flip margin is a safety value before the actual frame flip, that value is a estimative of how much the audio varies relative to the game loop.
+- Compare the write cursor with the margin.
+- If the write cursor is before the margin:
+	- Calculate the target cursor to be on the next margin.
+	- Write from the write cursor up to the target cursor.
+- If the write cursor is after the margin:
+	- Calculate the target cursor to be one frame worth of samples ahead from the write cursor, plus the safety margin.
+	- Write from the write cursor up to the target cursor.

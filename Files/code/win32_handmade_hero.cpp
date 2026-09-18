@@ -1,10 +1,4 @@
-#include <math.h>
-#include <stdio.h>
-
-#define PI 3.14159265359f
-
-#include "handmade_hero.cpp"
-
+#include "handmade.h"
 #include "win32_handmade.h"
 //TODO: Make a console "catch" for errors.
 //TODO: Make a debug console with iostream.
@@ -260,7 +254,7 @@ typedef DWORD WINAPI XInputSetStateFunction(DWORD dwUserIndex, XINPUT_STATE* pSt
 static XInputSetStateFunction *XInputSetStatePointer = ThereAreNoXInputLib;
 #define XInputSetState XInputSetStatePointer
 
-static void LoadXInputLib(void) {
+static void LoadXInputLib() {
 	HMODULE XInputLibLoad = LoadLibrary("xinput1_4.dll");
 	if(XInputLibLoad) {
 		XInputGetStatePointer = (XInputGetStateFunction *)GetProcAddress(XInputLibLoad, "XInputGetState");
@@ -307,7 +301,11 @@ static rat32 process_analogic_stick(SHORT hardware_stick_value, SHORT dead_zone_
 ###################################################################################################
 */
 
-static DEBUG_FileRead DEBUG_ReadFile(char *FileName) {
+void DEBUG_FreeFileMemory(void *Memory) {
+	VirtualFree(Memory, 0, MEM_RELEASE);
+}
+
+DEBUG_FileRead DEBUG_ReadFile(char *FileName) {
 	DEBUG_FileRead Result = {};
 	HANDLE FileHandle = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	if(FileHandle == INVALID_HANDLE_VALUE) {
@@ -338,7 +336,7 @@ static DEBUG_FileRead DEBUG_ReadFile(char *FileName) {
 	return Result;
 }
 
-static bool32 DEBUG_WriteFile(char *FileName, nat32 MemorySize, void *Memory) {
+bool32 DEBUG_WriteFile(char *FileName, nat32 MemorySize, void *Memory) {
 	bool32 Result = false;
 	HANDLE FileHandle = CreateFile(FileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
 	if(FileHandle == INVALID_HANDLE_VALUE) {
@@ -360,8 +358,48 @@ static bool32 DEBUG_WriteFile(char *FileName, nat32 MemorySize, void *Memory) {
 	return Result;
 }
 
-static void DEBUG_FreeFileMemory(void *Memory) {
-	VirtualFree(Memory, 0, MEM_RELEASE);
+#pragma endregion
+
+#pragma region GAME IMPORT
+/*
+###################################################################################################
+#
+# GAME IMPORT
+#
+###################################################################################################
+*/
+
+struct Win32GameCode {
+	HMODULE GameCodeDLL;
+	GameUpdateFunction *Update;
+	GameSoundFunction *Sound;
+};
+
+static Win32GameCode LoadGameCode() {
+	Win32GameCode GameCode = {};
+	CopyFile("handmade_hero.dll", "handmade_hero_temp.dll", false);
+	GameCode.GameCodeDLL = LoadLibrary("handmade_hero_temp.dll");
+	if(GameCode.GameCodeDLL) {
+		GameCode.Update = (GameUpdateFunction *)GetProcAddress(GameCode.GameCodeDLL, "GameUpdate");
+		GameCode.Sound = (GameSoundFunction *)GetProcAddress(GameCode.GameCodeDLL, "GameSoundOutput");
+	}
+	if(!(GameCode.Update && GameCode.Sound)) {
+		GameCode.Update = (GameUpdateFunction *)GameCodeNotFound;
+		GameCode.Sound = (GameSoundFunction *)GameCodeNotFound;
+	}
+	return GameCode;
+}
+
+static void UnloadGameCode(Win32GameCode *GameCode) {
+	if(GameCode->GameCodeDLL) {
+		bool32 DLLIsFree = FreeLibrary(GameCode->GameCodeDLL);
+		while(!DLLIsFree) {
+			DLLIsFree = FreeLibrary(GameCode->GameCodeDLL);
+		}
+	}
+	GameCode->GameCodeDLL = 0;
+	GameCode->Update = (GameUpdateFunction *)GameCodeNotFound;
+	GameCode->Sound = (GameSoundFunction *)GameCodeNotFound;
 }
 
 #pragma endregion
@@ -629,6 +667,10 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		// Window not created, ERROR CATCH.
 		return 0;
 	}
+	
+	// Load the game.
+	Win32GameCode Game = LoadGameCode();
+	int32 DelayToLoad = 0;
 
 	// Performance counter.
 	LARGE_INTEGER PerformanceFrequency;
@@ -654,6 +696,10 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	nat64 TotalSize = GameMemory.PermanentSize + GameMemory.VolatileSize;
 	GameMemory.PermanentPtr = VirtualAlloc(BaseAddress, TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	GameMemory.VolatilePtr = ((nat8 *)GameMemory.PermanentPtr + GameMemory.PermanentSize);
+	
+	GameMemory.DEBUG_ReadFile = DEBUG_ReadFile;
+	GameMemory.DEBUG_WriteFile = DEBUG_WriteFile;
+	GameMemory.DEBUG_FreeFileMemory = DEBUG_FreeFileMemory;
 	
 	// Render setup.
 	ResizeDIBSection(&GlobalBackbuffer, 1208, 720);
@@ -704,6 +750,13 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	#pragma region RUNNING
 	// While loop controled by a bool to keep the program running, because `PeekMessage` gets outta the loop when there are no messages.
 	while(Running) {
+		
+		if(DelayToLoad > 120) {
+			UnloadGameCode(&Game);
+			Game = LoadGameCode();
+			DelayToLoad = 0;
+		}
+		DelayToLoad++;
 		
 		gamepad_controller_input *NewKeyboardController = &new_input->gamepad_controller[0];
 		gamepad_controller_input *OldKeyboardController = &old_input->gamepad_controller[0];
@@ -777,7 +830,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		GameBuffer.BytePerPixel = GlobalBackbuffer.BytePerPixel;
 		GameBuffer.Pitch = GlobalBackbuffer.Pitch;
 		
-		GameUpdate(&GameMemory, &GameBuffer, &KeyInput, new_input);
+		Game.Update(&GameMemory, &GameBuffer, &KeyInput, new_input);
 		
 		/* NOTE:
 		SOUND BUFFER PLAN:
@@ -881,7 +934,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		GameSoundBuffer.SampleIndex = SoundConfig.RunningSampleIndex;
 		GameSoundBuffer.ReadyToWrite = ValidSound;
 		
-		GameSoundOutput(&GameMemory, &GameSoundBuffer);
+		Game.Sound(&GameMemory, &GameSoundBuffer);
 		
 		rat32 TimeComputingInMiliseconds = GetMilisecondsElapsed(LastCount, GetSystemTimeStamp());
 		

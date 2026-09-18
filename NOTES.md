@@ -1033,3 +1033,19 @@ Sound is always written from W to T.
 - If the write cursor is after the margin:
 	- Calculate the target cursor to be one frame worth of samples ahead from the write cursor, plus the safety margin.
 	- Write from the write cursor up to the target cursor.
+
+# 14/09/2026
+
+## Dynamic code loading
+
+In order to speed up the process of editing game code, the platform and game layer can be compiled separately, and the game layer can be loaded in the platform layer as a dynamic library. We already did that with `LoadLibrary()` function. There is an equivalent `FreeLibrary()` function, that allows us to release a library on run-time.
+
+With both these function, it's possible to load and update code dynamically without having to terminate the process.
+
+# 17/09/2026
+
+## Executable file location doesn't matter
+
+The working directory of the process is not the location of the executable file, but the directory on which it was called.
+
+That only concerns relative path names i guess.

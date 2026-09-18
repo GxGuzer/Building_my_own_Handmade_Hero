@@ -1,5 +1,5 @@
 /summary_for_git.txt
 *.bat
-/Files/build/.vs/**
-.vscode/**
+/Files/build/*
+.vscode/*
 test.out

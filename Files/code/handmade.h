@@ -1,3 +1,7 @@
+#pragma once
+
+#include <math.h>
+#include <stdio.h>
 #include <stdint.h>
 
 typedef uint8_t  nat8;
@@ -14,6 +18,8 @@ typedef float    rat32;
 typedef double   rat64;
 
 typedef int32    bool32;
+
+#define PI 3.14159265359f
 
 #define Assert(Expression) if(!(Expression)) { \
 	*(int *)0 = 0; \
@@ -41,9 +47,9 @@ struct DEBUG_FileRead {
 	nat32 FileSize;
 	void *FileContent;
 };
-static DEBUG_FileRead DEBUG_ReadFile(char *FileName);
-static bool32 DEBUG_WriteFile(char *FileName, nat32 MemorySize, void *Memory);
-static void DEBUG_FreeFileMemory(void *Memory);
+typedef DEBUG_FileRead DEBUG_ReadFileFunction(char *FileName);
+typedef bool32 DEBUG_WriteFileFunction(char *FileName, nat32 MemorySize, void *Memory);
+typedef void DEBUG_FreeFileMemoryFunction(void *Memory);
 #pragma endregion
 
 #pragma region Game to OS
@@ -56,6 +62,10 @@ struct GameMemory {
 	void *PermanentPtr; // Memory is required to be initialized to zero, it must be done if the platform layer doesn't do it.
 	nat64 VolatileSize;
 	void *VolatilePtr;
+	
+	DEBUG_ReadFileFunction *DEBUG_ReadFile;
+	DEBUG_WriteFileFunction *DEBUG_WriteFile;
+	DEBUG_FreeFileMemoryFunction *DEBUG_FreeFileMemory;
 };
 
 struct RenderState {
@@ -67,6 +77,7 @@ struct RenderState {
 struct SoundState {
 	int32 ToneHertz;
 	nat16 ToneVolume;
+	rat32 T;
 };
 
 struct GameState {
@@ -154,3 +165,11 @@ inline gamepad_controller_input *GetController(gamepad_input *GamepadInput, int3
 	Assert(GamepadIndex < ArrayCount(GamepadInput->gamepad_controller));
 	return &GamepadInput->gamepad_controller[GamepadIndex];
 }
+
+void GameCodeNotFound() {
+	return;
+}
+
+typedef void GameUpdateFunction(GameMemory *Memory, BitmapBuffer *Buffer, GameKeyboardState *KeyState, gamepad_input *input_);
+
+typedef void GameSoundFunction(GameMemory *Memory, SoundBuffer *Buffer);

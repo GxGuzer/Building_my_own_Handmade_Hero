@@ -1,20 +1,19 @@
 #include "handmade.h"
 
-void SineOutput(SoundBuffer *SoundBuffer, int32 ToneHertz, nat16 ToneVolume) {
+void SineOutput(SoundBuffer *SoundBuffer, int32 ToneHertz, nat16 ToneVolume, rat32 *T) {
 	
 	int16 *SampleOut = SoundBuffer->SampleOut;
 	int32 WavePeriod = SoundBuffer->SamplesPerSecond / ToneHertz;
-	static rat32 t = 0;
 	
 	for(int32 SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; SampleIndex++) {
-		rat32 SineValue = sinf(t);
+		rat32 SineValue = sinf(*T);
 		int16 SampleValue = (int16)(SineValue * ToneVolume);
 		*SampleOut++ = SampleValue;
 		*SampleOut++ = SampleValue;
 		
-		t += 2.0f*PI / (rat32)(WavePeriod);
-		if(t > 2.0f*PI) {
-			t -= 2.0f*PI;
+		*T += 2.0f*PI / (rat32)(WavePeriod);
+		if(*T > 2.0f*PI) {
+			*T -= 2.0f*PI;
 		}
 	}
 }
@@ -28,7 +27,7 @@ void RenderGrad(BitmapBuffer *Buffer, int32 XOffset, int32 YOffset) {
 			
 			nat8 Red = (nat8)(X + XOffset);
 			nat8 Green = (nat8)(Y + YOffset);
-			nat8 Blue = 0;
+			nat8 Blue = 255;
 
 			*Pixel = ((Red << 16) | (Green << 8) | Blue);
 			*Pixel++;
@@ -38,22 +37,23 @@ void RenderGrad(BitmapBuffer *Buffer, int32 XOffset, int32 YOffset) {
 	}
 }
 
-static void GameUpdate(GameMemory *Memory, BitmapBuffer *Buffer, GameKeyboardState *KeyState, gamepad_input *input_) {
+extern "C" void GameUpdate(GameMemory *Memory, BitmapBuffer *Buffer, GameKeyboardState *KeyState, gamepad_input *input_) {
 	Assert(sizeof(GameState) <= Memory->PermanentSize);
 	Assert((&input_->gamepad_controller[0].Terminator - &input_->gamepad_controller[0].GamepadButton[0]) == ArrayCount(input_->gamepad_controller[0].GamepadButton));
 
 	GameState *State = (GameState *)Memory->PermanentPtr;
 	if(!Memory->Initialized) {
 		char *FileName = __FILE__;
-		DEBUG_FileRead File = DEBUG_ReadFile(FileName);
+		DEBUG_FileRead File = Memory->DEBUG_ReadFile(FileName);
 		if(File.FileContent) {
-			DEBUG_WriteFile("test.out", File.FileSize, File.FileContent);
-			DEBUG_FreeFileMemory(File.FileContent);
+			Memory->DEBUG_WriteFile("..\\..\\Assets\\test.out", File.FileSize, File.FileContent);
+			Memory->DEBUG_FreeFileMemory(File.FileContent);
 		}
 
 		State->Render.Speed = 4;
 		State->Sound.ToneVolume = 4000;
 		State->Sound.ToneHertz = 261;
+		State->Sound.T = 0.0f;
 		Memory->Initialized = true;
 	}
 	
@@ -100,12 +100,18 @@ static void GameUpdate(GameMemory *Memory, BitmapBuffer *Buffer, GameKeyboardSta
 	RenderGrad(Buffer, State->Render.XOffset, State->Render.YOffset);
 }
 
-static void GameSoundOutput(GameMemory *Memory, SoundBuffer *Buffer) {
+extern "C" void GameSoundOutput(GameMemory *Memory, SoundBuffer *Buffer) {
 	GameState *State = (GameState *)Memory->PermanentPtr;
 	if(!Memory->Initialized) {
 		State->Sound.ToneVolume = 4000;
 		State->Sound.ToneHertz = 261;
+		State->Sound.T = 0.0f;
 	}
 	
-	SineOutput(Buffer, State->Sound.ToneHertz, State->Sound.ToneVolume);
+	SineOutput(Buffer, State->Sound.ToneHertz, State->Sound.ToneVolume, &State->Sound.T);
+}
+
+#include <windows.h>
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
+	return TRUE;
 }

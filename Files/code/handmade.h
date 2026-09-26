@@ -19,6 +19,12 @@ typedef double   rat64;
 
 typedef int32    bool32;
 
+typedef char xs_string[64];
+typedef char  s_string[128];
+typedef char    string[256];
+typedef char  l_string[512];
+typedef char xl_string[1024];
+
 #define PI 3.14159265359f
 
 #define Assert(Expression) if(!(Expression)) { \
@@ -31,6 +37,8 @@ typedef int32    bool32;
 #define TB *(1024 GB)
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
+
+#define StringLength(String) ArraryCount(String)
 
 nat32 Truncate64bitsTo32bits(nat64 UInt64) {
 	Assert(UInt64 <= 0xFFFFFFFF);

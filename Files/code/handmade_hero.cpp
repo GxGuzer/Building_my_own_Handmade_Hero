@@ -27,7 +27,7 @@ void RenderGrad(BitmapBuffer *Buffer, int32 XOffset, int32 YOffset) {
 			
 			nat8 Red = (nat8)(X + XOffset);
 			nat8 Green = (nat8)(Y + YOffset);
-			nat8 Blue = 255;
+			nat8 Blue = 0;
 
 			*Pixel = ((Red << 16) | (Green << 8) | Blue);
 			*Pixel++;
@@ -46,7 +46,7 @@ extern "C" void GameUpdate(GameMemory *Memory, BitmapBuffer *Buffer, GameKeyboar
 		char *FileName = __FILE__;
 		DEBUG_FileRead File = Memory->DEBUG_ReadFile(FileName);
 		if(File.FileContent) {
-			Memory->DEBUG_WriteFile("..\\..\\Assets\\test.out", File.FileSize, File.FileContent);
+			Memory->DEBUG_WriteFile("test.out", File.FileSize, File.FileContent);
 			Memory->DEBUG_FreeFileMemory(File.FileContent);
 		}
 
@@ -109,9 +109,4 @@ extern "C" void GameSoundOutput(GameMemory *Memory, SoundBuffer *Buffer) {
 	}
 	
 	SineOutput(Buffer, State->Sound.ToneHertz, State->Sound.ToneVolume, &State->Sound.T);
-}
-
-#include <windows.h>
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
-	return TRUE;
 }

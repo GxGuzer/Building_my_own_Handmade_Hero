@@ -369,16 +369,22 @@ bool32 DEBUG_WriteFile(char *FileName, nat32 MemorySize, void *Memory) {
 ###################################################################################################
 */
 
-struct Win32GameCode {
-	HMODULE GameCodeDLL;
-	GameUpdateFunction *Update;
-	GameSoundFunction *Sound;
-};
+inline FILETIME GetFileWriteTime(char *FileName) {
+	FILETIME LastWriteTime = {};
+	WIN32_FIND_DATA FileDataFound = {};
+	HANDLE FileFound = FindFirstFile(FileName, &FileDataFound);
+	if(FileFound != INVALID_HANDLE_VALUE) {
+		LastWriteTime = FileDataFound.ftLastWriteTime;
+		FindClose(FileFound);
+	}
+	return LastWriteTime;
+}
 
-static Win32GameCode LoadGameCode() {
+static Win32GameCode LoadGameCode(char *SourceFilePath, char *TempFilePath) {
 	Win32GameCode GameCode = {};
-	CopyFile("handmade_hero.dll", "handmade_hero_temp.dll", false);
-	GameCode.GameCodeDLL = LoadLibrary("handmade_hero_temp.dll");
+	CopyFile(SourceFilePath, TempFilePath, false);
+	GameCode.LastWriteTime = GetFileWriteTime(SourceFilePath);
+	GameCode.GameCodeDLL = LoadLibrary(TempFilePath);
 	if(GameCode.GameCodeDLL) {
 		GameCode.Update = (GameUpdateFunction *)GetProcAddress(GameCode.GameCodeDLL, "GameUpdate");
 		GameCode.Sound = (GameSoundFunction *)GetProcAddress(GameCode.GameCodeDLL, "GameSoundOutput");
@@ -393,13 +399,12 @@ static Win32GameCode LoadGameCode() {
 static void UnloadGameCode(Win32GameCode *GameCode) {
 	if(GameCode->GameCodeDLL) {
 		bool32 DLLIsFree = FreeLibrary(GameCode->GameCodeDLL);
-		while(!DLLIsFree) {
-			DLLIsFree = FreeLibrary(GameCode->GameCodeDLL);
+		if(DLLIsFree) {
+			GameCode->GameCodeDLL = 0;
+			GameCode->Update = (GameUpdateFunction *)GameCodeNotFound;
+			GameCode->Sound = (GameSoundFunction *)GameCodeNotFound;
 		}
 	}
-	GameCode->GameCodeDLL = 0;
-	GameCode->Update = (GameUpdateFunction *)GameCodeNotFound;
-	GameCode->Sound = (GameSoundFunction *)GameCodeNotFound;
 }
 
 #pragma endregion
@@ -636,6 +641,47 @@ static void DEBUG_DisplayAudioImageSync(Win32BitmapBuffer *Backbuffer, DEBUG_Sou
 	}
 }
 
+static void ConcatString(char *LeftString, char *RightString, l_string DestString) {
+	char *TargetCopy = LeftString;
+	char *TargetWrite = DestString;
+	int32 LStringSize = sizeof(l_string);
+	bool32 RightSide = false;
+	for(int32 Index = 0; Index <= LStringSize; Index++) {
+		if(Index >= LStringSize) {
+			DestString = {};
+			break;
+		}
+		if(*TargetCopy) {
+			*TargetWrite++ = *TargetCopy++;
+		}else {
+			if(!RightSide) {
+				TargetCopy = RightString;
+				RightSide = true;
+			}else {
+				break;
+			}
+		}
+	}
+}
+
+
+static void DissectFullPath(l_string FullPath, l_string FolderPath, l_string FileName) {
+	char *FileNamePointer = FullPath;
+	for(char *Scan = FullPath; *Scan; Scan++) {
+		if(*Scan == '\\') {
+			FileNamePointer = Scan + 1;
+		}
+	}
+	char *TargetChar = FolderPath;
+	for(char *Scan = FullPath; Scan < FileNamePointer; Scan++) {
+		*TargetChar++ = *Scan;
+	}
+	TargetChar = FileName;
+	for(char *Scan = FileNamePointer; *Scan; Scan++) {
+		*TargetChar++ = *Scan;
+	}
+}
+
 #pragma endregion
 
 #pragma region MAIN
@@ -668,9 +714,21 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		return 0;
 	}
 	
+	l_string EXEFilePath = {};
+	DWORD EXEFilePathStringSize = GetModuleFileName(0, EXEFilePath, sizeof(EXEFilePath));
+	l_string EXEFolderPath = {};
+	l_string EXEFileName = {};
+	DissectFullPath(EXEFilePath, EXEFolderPath, EXEFileName);
+	
+	l_string GameCodeDLLFilePath = {};
+	l_string GameCodeDLLFileName = "handmade_hero.dll";
+	l_string GameCodeTempDLLFilePath = {};
+	l_string GameCodeTempDLLFileName = "handmade_hero_temp.dll";
+	ConcatString(EXEFolderPath, GameCodeDLLFileName, GameCodeDLLFilePath);
+	ConcatString(EXEFolderPath, GameCodeTempDLLFileName, GameCodeTempDLLFilePath);
+	
 	// Load the game.
-	Win32GameCode Game = LoadGameCode();
-	int32 DelayToLoad = 0;
+	Win32GameCode Game = LoadGameCode(GameCodeDLLFilePath, GameCodeTempDLLFilePath);
 
 	// Performance counter.
 	LARGE_INTEGER PerformanceFrequency;
@@ -751,12 +809,11 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	// While loop controled by a bool to keep the program running, because `PeekMessage` gets outta the loop when there are no messages.
 	while(Running) {
 		
-		if(DelayToLoad > 120) {
+		FILETIME NewFileTime = GetFileWriteTime(GameCodeDLLFilePath);
+		if(CompareFileTime(&Game.LastWriteTime, &NewFileTime)) {
 			UnloadGameCode(&Game);
-			Game = LoadGameCode();
-			DelayToLoad = 0;
+			Game = LoadGameCode(GameCodeDLLFilePath, GameCodeTempDLLFilePath);
 		}
-		DelayToLoad++;
 		
 		gamepad_controller_input *NewKeyboardController = &new_input->gamepad_controller[0];
 		gamepad_controller_input *OldKeyboardController = &old_input->gamepad_controller[0];

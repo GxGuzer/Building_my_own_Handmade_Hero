@@ -1049,3 +1049,13 @@ With both these function, it's possible to load and update code dynamically with
 The working directory of the process is not the location of the executable file, but the directory on which it was called.
 
 That only concerns relative path names i guess.
+
+# 18/09/2026
+
+## Avoiding PDB locking
+
+Loading code dynamically through a DLL works primarily on standalone execution, because the debugger locks its PDB file.
+
+A solution to load code with the debugger active is to tell the compiler linker to create a different PDB file each time. which will make the compiler not complain about it, because it'll want to write to a different file than the one it's locked.
+
+Such behavior is achieved through putting system variable string syntax on the compile command line, such as `%date%`, `%time%`, and even `%random%` (date and time accounts for invalid characters, such as slash (/) and colons (:), a character range syntax is used to elimante those characters, f.e. `%date:~0,2%` outputs only the first two characters, which can be only the day, or month).

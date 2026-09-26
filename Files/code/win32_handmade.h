@@ -52,3 +52,10 @@ struct DEBUG_SoundCursorMarkers {
 	DWORD DEBUG_FlipPlayCursor;
 	DWORD DEBUG_FlipWriteCursor;
 };
+
+struct Win32GameCode {
+	HMODULE GameCodeDLL;
+	GameUpdateFunction *Update;
+	GameSoundFunction *Sound;
+	FILETIME LastWriteTime;
+};

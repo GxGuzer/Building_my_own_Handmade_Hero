@@ -409,156 +409,16 @@ static void UnloadGameCode(Win32GameCode *GameCode) {
 
 #pragma endregion
 
-#pragma region WINDOW
+#pragma region MISC
 /*
 ###################################################################################################
 #
-# WINDOW
+# MISC
 #
 ###################################################################################################
 */
 
 static bool32 DEBUG_GlobalPause;
-
-// Window procedure to messages.
-LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam) {
-	LRESULT Result = 0;
-	switch (Message) {
-		case WM_SIZE: {
-			InvalidateRect(Window, NULL, true);
-		}break;
-
-		case WM_DESTROY: {
-			// TODO: Error handle with window recreation?
-			PostQuitMessage(0); 
-		}break;
-		
-		case WM_PAINT: {
-			PAINTSTRUCT Paint;
-			HDC DeviceContext = BeginPaint(Window, &Paint);
-
-			ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(Window);
-			DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer);
-
-			EndPaint(Window, &Paint);
-		}break;
-
-		case WM_CLOSE: {
-			/*
-			if(MessageBox(Window, "Get Out?", "Close the game?", MB_OKCANCEL) == IDOK) {
-			DestroyWindow(Window);
-			}*/ 
-			DestroyWindow(Window);
-			//cout << "Close" << endl;
-		}break;
-
-		case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSKEYDOWN: {
-			Assert(!"Keyboard input passed through message dispatch.");
-			/*
-			KeyInput.VirtualKeycode = (nat32)WParam;
-			KeyInput.WithAlt = (LParam & (1 << 29));
-			KeyInput.WasPressed = (LParam & (1 << 30));
-			KeyInput.IsPressed = !(LParam & (1 << 31));
-			if(KeyInput.IsPressed && (KeyInput.VirtualKeycode == VK_ESCAPE)) {
-				Running = false;
-			}
-			*/
-		}break;
-
-		default: {
-			Result = DefWindowProc(Window, Message, WParam, LParam);
-		}break;
-	}
-	return Result;
-}
-
-static void WindowMsg(GameKeyboardState KeyInput, gamepad_controller_input *KeyboardController) {
-	MSG Message;
-	while(PeekMessage(&Message, 0, 0, 0, PM_REMOVE)) {
-		// Message handling
-		switch(Message.message) {
-			case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSKEYDOWN: {
-				KeyInput.VirtualKeycode = (nat32)Message.wParam;
-				KeyInput.WithAlt = (Message.lParam & (1 << 29));
-				KeyInput.WasPressed = (Message.lParam & (1 << 30));
-				KeyInput.IsPressed = !(Message.lParam & (1 << 31));
-				
-				if(KeyInput.WasPressed != KeyInput.IsPressed) {
-					switch(KeyInput.VirtualKeycode) {
-						case 'W': {
-							ProcessKeyboardButton(&KeyboardController->LeftStickUp, KeyInput.IsPressed);
-						}break;
-						
-						case 'A': {
-							ProcessKeyboardButton(&KeyboardController->LeftStickLeft, KeyInput.IsPressed);
-						}break;
-						
-						case 'S': {
-							ProcessKeyboardButton(&KeyboardController->LeftStickDown, KeyInput.IsPressed);
-						}break;
-						
-						case 'D': {
-							ProcessKeyboardButton(&KeyboardController->LeftStickRight, KeyInput.IsPressed);
-						}break;
-						
-						case 'J': {
-							ProcessKeyboardButton(&KeyboardController->AButton, KeyInput.IsPressed);
-						}break;
-	
-						case 'K': {
-							ProcessKeyboardButton(&KeyboardController->BButton, KeyInput.IsPressed);
-						}break;
-	
-						case 'U': {
-							ProcessKeyboardButton(&KeyboardController->XButton, KeyInput.IsPressed);
-						}break;
-	
-						case 'I': {
-							ProcessKeyboardButton(&KeyboardController->YButton, KeyInput.IsPressed);
-						}break;
-						
-						case VK_UP: {
-							ProcessKeyboardButton(&KeyboardController->DpadUp, KeyInput.IsPressed);
-						}break;
-						
-						case VK_LEFT: {
-							ProcessKeyboardButton(&KeyboardController->DpadLeft, KeyInput.IsPressed);
-						}break;
-						
-						case VK_DOWN: {
-							ProcessKeyboardButton(&KeyboardController->DpadDown, KeyInput.IsPressed);
-						}break;
-						
-						case VK_RIGHT: {
-							ProcessKeyboardButton(&KeyboardController->DpadRight, KeyInput.IsPressed);
-						}break;
-	
-						case VK_ESCAPE: {
-							if(KeyInput.IsPressed) {
-								Running = false;
-							}
-						}break;
-					}
-				}
-				
-				if(KeyInput.VirtualKeycode == 'P') {
-					if(KeyInput.IsPressed) {
-						DEBUG_GlobalPause = !DEBUG_GlobalPause;
-					}
-				}
-			}break;
-
-			case WM_QUIT: {
-				Running = false;
-			}break;
-
-			default: {
-				TranslateMessage(&Message);
-				DispatchMessage(&Message);
-			}break;
-		}
-	}
-}
 
 static int64 CountFrequency;
 
@@ -664,7 +524,6 @@ static void ConcatString(char *LeftString, char *RightString, l_string DestStrin
 	}
 }
 
-
 static void DissectFullPath(l_string FullPath, l_string FolderPath, l_string FileName) {
 	char *FileNamePointer = FullPath;
 	for(char *Scan = FullPath; *Scan; Scan++) {
@@ -679,6 +538,215 @@ static void DissectFullPath(l_string FullPath, l_string FolderPath, l_string Fil
 	TargetChar = FileName;
 	for(char *Scan = FileNamePointer; *Scan; Scan++) {
 		*TargetChar++ = *Scan;
+	}
+}
+
+static void Win32BeginRecordInput(Win32State *Win32State, int32 InputIndex) {
+	Win32State->RecordingIndex = InputIndex;
+	string FileName = "InputPlayback.out";
+	Win32State->InputRecordFile = CreateFile(FileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+	DWORD BytesToWrite = (DWORD)(Win32State->TotalSize);
+	DWORD BytesWritten;
+	Assert(Win32State->TotalSize == BytesToWrite);
+	WriteFile(Win32State->InputRecordFile, Win32State->GameMemoryBlock, BytesToWrite, &BytesWritten, 0);
+}
+
+static void Win32EndRecordInput(Win32State *Win32State) {
+	CloseHandle(Win32State->InputRecordFile);
+	Win32State->RecordingIndex = 0;
+}
+
+static void Win32BeginInputPlayback(Win32State *Win32State, int32 InputIndex) {
+	Win32State->PlayingIndex = InputIndex;
+	string FileName = "InputPlayback.out";
+	Win32State->InputPlaybackFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	DWORD BytesToRead = (DWORD)(Win32State->TotalSize);
+	DWORD BytesRead;
+	Assert(Win32State->TotalSize == BytesToRead);
+	ReadFile(Win32State->InputPlaybackFile, Win32State->GameMemoryBlock, BytesToRead, &BytesRead, 0);
+}
+
+static void Win32EndInputPlayback(Win32State *Win32State) {
+	CloseHandle(Win32State->InputPlaybackFile);
+	Win32State->PlayingIndex = 0;
+}
+
+static void Win32RecordInput(Win32State *Win32State, gamepad_input *InputToRecord) {
+	DWORD BytesWritten;
+	WriteFile(Win32State->InputRecordFile, InputToRecord, sizeof(*InputToRecord), &BytesWritten, 0);
+}
+
+static void Win32PlaybackInput(Win32State *Win32State, gamepad_input *InputToRecord) {
+	DWORD BytesRead = 0;
+	if(ReadFile(Win32State->InputPlaybackFile, InputToRecord, sizeof(*InputToRecord), &BytesRead, 0)) {
+		if(BytesRead == 0) {
+			int32 PlaybackIndex = Win32State->PlayingIndex;
+			Win32EndInputPlayback(Win32State);
+			Win32BeginInputPlayback(Win32State, PlaybackIndex);
+			ReadFile(Win32State->InputPlaybackFile, InputToRecord, sizeof(*InputToRecord), &BytesRead, 0)
+		}
+	}
+}
+
+#pragma endregion
+
+#pragma region WINDOW MESSAGES
+/*
+###################################################################################################
+#
+# WINDOW MESSAGES
+#
+###################################################################################################
+*/
+
+// Window procedure to messages.
+LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam) {
+	LRESULT Result = 0;
+	switch (Message) {
+		case WM_SIZE: {
+			InvalidateRect(Window, NULL, true);
+		}break;
+
+		case WM_DESTROY: {
+			// TODO: Error handle with window recreation?
+			PostQuitMessage(0); 
+		}break;
+		
+		case WM_PAINT: {
+			PAINTSTRUCT Paint;
+			HDC DeviceContext = BeginPaint(Window, &Paint);
+
+			ClientWindowDimension ClientWindowDimension = GetClientWindowDimension(Window);
+			DisplayBuffer(DeviceContext, ClientWindowDimension.Width, ClientWindowDimension.Height, GlobalBackbuffer);
+
+			EndPaint(Window, &Paint);
+		}break;
+
+		case WM_CLOSE: {
+			/*
+			if(MessageBox(Window, "Get Out?", "Close the game?", MB_OKCANCEL) == IDOK) {
+			DestroyWindow(Window);
+			}*/ 
+			DestroyWindow(Window);
+			//cout << "Close" << endl;
+		}break;
+
+		case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSKEYDOWN: {
+			Assert(!"Keyboard input passed through message dispatch.");
+			/*
+			KeyInput.VirtualKeycode = (nat32)WParam;
+			KeyInput.WithAlt = (LParam & (1 << 29));
+			KeyInput.WasPressed = (LParam & (1 << 30));
+			KeyInput.IsPressed = !(LParam & (1 << 31));
+			if(KeyInput.IsPressed && (KeyInput.VirtualKeycode == VK_ESCAPE)) {
+				Running = false;
+			}
+			*/
+		}break;
+
+		default: {
+			Result = DefWindowProc(Window, Message, WParam, LParam);
+		}break;
+	}
+	return Result;
+}
+
+static void WindowMsg(GameKeyboardState KeyInput, gamepad_controller_input *KeyboardController, Win32State *Win32State) {
+	MSG Message;
+	while(PeekMessage(&Message, 0, 0, 0, PM_REMOVE)) {
+		// Message handling
+		switch(Message.message) {
+			case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSKEYDOWN: {
+				KeyInput.VirtualKeycode = (nat32)Message.wParam;
+				KeyInput.WithAlt = (Message.lParam & (1 << 29));
+				KeyInput.WasPressed = (Message.lParam & (1 << 30));
+				KeyInput.IsPressed = !(Message.lParam & (1 << 31));
+				
+				if(KeyInput.WasPressed != KeyInput.IsPressed) {
+					switch(KeyInput.VirtualKeycode) {
+						case 'W': {
+							ProcessKeyboardButton(&KeyboardController->LeftStickUp, KeyInput.IsPressed);
+						}break;
+						
+						case 'A': {
+							ProcessKeyboardButton(&KeyboardController->LeftStickLeft, KeyInput.IsPressed);
+						}break;
+						
+						case 'S': {
+							ProcessKeyboardButton(&KeyboardController->LeftStickDown, KeyInput.IsPressed);
+						}break;
+						
+						case 'D': {
+							ProcessKeyboardButton(&KeyboardController->LeftStickRight, KeyInput.IsPressed);
+						}break;
+						
+						case 'J': {
+							ProcessKeyboardButton(&KeyboardController->AButton, KeyInput.IsPressed);
+						}break;
+						
+						case 'K': {
+							ProcessKeyboardButton(&KeyboardController->BButton, KeyInput.IsPressed);
+						}break;
+						
+						case 'U': {
+							ProcessKeyboardButton(&KeyboardController->XButton, KeyInput.IsPressed);
+						}break;
+						
+						case 'I': {
+							ProcessKeyboardButton(&KeyboardController->YButton, KeyInput.IsPressed);
+						}break;
+						
+						case 'P': {
+							if(KeyInput.IsPressed) {
+								DEBUG_GlobalPause = !DEBUG_GlobalPause;
+							}
+						}break;
+						
+						case 'L': {
+							if(KeyInput.IsPressed) {
+								if(Win32State->RecordingIndex == 0) {
+									Win32BeginRecordInput(Win32State, 1);
+								}else {
+									Win32EndRecordInput(Win32State);
+									Win32BeginInputPlayback(Win32State, 1);
+								}
+							}
+						}break;
+						
+						case VK_UP: {
+							ProcessKeyboardButton(&KeyboardController->DpadUp, KeyInput.IsPressed);
+						}break;
+						
+						case VK_LEFT: {
+							ProcessKeyboardButton(&KeyboardController->DpadLeft, KeyInput.IsPressed);
+						}break;
+						
+						case VK_DOWN: {
+							ProcessKeyboardButton(&KeyboardController->DpadDown, KeyInput.IsPressed);
+						}break;
+						
+						case VK_RIGHT: {
+							ProcessKeyboardButton(&KeyboardController->DpadRight, KeyInput.IsPressed);
+						}break;
+	
+						case VK_ESCAPE: {
+							if(KeyInput.IsPressed) {
+								Running = false;
+							}
+						}break;
+					}
+				}
+			}break;
+
+			case WM_QUIT: {
+				Running = false;
+			}break;
+
+			default: {
+				TranslateMessage(&Message);
+				DispatchMessage(&Message);
+			}break;
+		}
 	}
 }
 
@@ -705,7 +773,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		// Class not initialized, ERROR CATCH.
 	}
 
-	HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0, 0, 1472, 828, 0, 0, Instance, 0);
+	HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_SIZEBOX, 0, 0, 1120, 630, 0, 0, Instance, 0);
 
 	if(HandmadeHeroWindow) {
 		Running = true;
@@ -747,12 +815,15 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	bool32 SleepIsPrecise = (timeBeginPeriod(TargetSchedulerGranularity) == TIMERR_NOERROR);
 	
 	// Memory setup.
+	Win32State Win32State = {};
+	
 	LPVOID BaseAddress = (LPVOID)(2 TB); // TODO: Remove on final build.
 	GameMemory GameMemory = {};
 	GameMemory.PermanentSize = 64 MB;
-	GameMemory.VolatileSize = 4 GB;
-	nat64 TotalSize = GameMemory.PermanentSize + GameMemory.VolatileSize;
-	GameMemory.PermanentPtr = VirtualAlloc(BaseAddress, TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	GameMemory.VolatileSize = 2 GB;
+	Win32State.TotalSize = GameMemory.PermanentSize + GameMemory.VolatileSize;
+	Win32State.GameMemoryBlock = VirtualAlloc(BaseAddress, Win32State.TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	GameMemory.PermanentPtr = Win32State.GameMemoryBlock;
 	GameMemory.VolatilePtr = ((nat8 *)GameMemory.PermanentPtr + GameMemory.PermanentSize);
 	
 	GameMemory.DEBUG_ReadFile = DEBUG_ReadFile;
@@ -823,7 +894,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 			NewKeyboardController->GamepadButton[ButtonIndex].EndedDown = OldKeyboardController->GamepadButton[ButtonIndex].EndedDown;
 		}
 		
-		WindowMsg(KeyInput, NewKeyboardController);
+		WindowMsg(KeyInput, NewKeyboardController, &Win32State);
 		
 		nat32 max_controller_count = XUSER_MAX_COUNT;
 		if(max_controller_count > ArrayCount(new_input->gamepad_controller) - 1) {
@@ -887,6 +958,13 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		GameBuffer.BytePerPixel = GlobalBackbuffer.BytePerPixel;
 		GameBuffer.Pitch = GlobalBackbuffer.Pitch;
 		
+		if(Win32State.RecordingIndex) {
+			Win32RecordInput(&Win32State, new_input);
+		}
+		if(Win32State.PlayingIndex) {
+			Win32PlaybackInput(&Win32State, new_input);
+		}
+		
 		Game.Update(&GameMemory, &GameBuffer, &KeyInput, new_input);
 		
 		/* NOTE:
@@ -902,8 +980,6 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 			- Calculate the target cursor to be one frame worth of samples ahead from the write cursor, plus the safety margin.
 			- Write from the write cursor up to the target cursor.
 		*/
-		
-		// WARNING: Sound logic will be remade for the new frame loop.
 		
 		DWORD SoundPlayCursor = 0;
 		DWORD SoundWriteCursor = 0;

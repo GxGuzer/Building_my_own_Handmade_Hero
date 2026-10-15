@@ -1059,3 +1059,21 @@ Loading code dynamically through a DLL works primarily on standalone execution, 
 A solution to load code with the debugger active is to tell the compiler linker to create a different PDB file each time. which will make the compiler not complain about it, because it'll want to write to a different file than the one it's locked.
 
 Such behavior is achieved through putting system variable string syntax on the compile command line, such as `%date%`, `%time%`, and even `%random%` (date and time accounts for invalid characters, such as slash (/) and colons (:), a character range syntax is used to elimante those characters, f.e. `%date:~0,2%` outputs only the first two characters, which can be only the day, or month).
+
+# 15/10/2026
+
+## Looped code editing
+
+In order for a faster testing of a feature, it is possible to record a sequence of inputs with the initial game state, and then keep reloading them as long as is need.
+
+The game is structure in a way which everything that happens is tracked on a single block of memory. So in order to record and reload, everything we should do is to write the game state to disk and reload it to memory.
+
+The approach works well, the only caveat is that, writing and reading will be slow because we are doing so with Gigs of info, which will be heavy for slower drives (My recording and reloading takes >10 seconds to complete).
+
+It is that simple, I thought I would have a bigger section for this.
+
+## Transparent window trick
+
+It's possible to keep the game window always above all with the `WS_EX_TOPMOST` extended style flag, which causes the window to never visually fall onto background.
+
+To make it more useful, it's possible to define a transparency for the window when it's whether active or unactive, for that, one must use the `WS_EX_LAYERED` extended style flag, and the transparency can be set with the `SetLayeredWindowAttributes()` function and `LWA_ALPHA` flag on the flag parameter. To use this, the window class can't have the `CS_OWNDC` flag.

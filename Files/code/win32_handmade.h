@@ -59,3 +59,14 @@ struct Win32GameCode {
 	GameSoundFunction *Sound;
 	FILETIME LastWriteTime;
 };
+
+struct Win32State {
+	nat64 TotalSize;
+	void *GameMemoryBlock;
+	
+	HANDLE InputRecordFile;
+	int32 RecordingIndex;
+	
+	HANDLE InputPlaybackFile;
+	int32 PlayingIndex;
+};

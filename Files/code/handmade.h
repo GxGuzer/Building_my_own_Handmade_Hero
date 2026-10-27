@@ -38,7 +38,7 @@ typedef char xl_string[1024];
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
-#define StringLength(String) ArraryCount(String)
+#define StringLength(String) ArrayCount(String)
 
 nat32 Truncate64bitsTo32bits(nat64 UInt64) {
 	Assert(UInt64 <= 0xFFFFFFFF);
@@ -174,6 +174,7 @@ inline gamepad_controller_input *GetController(gamepad_input *GamepadInput, int3
 	return &GamepadInput->gamepad_controller[GamepadIndex];
 }
 
+// NOTE: Remove this stub and set and check the function pointers to zero if there are conflicting tokens.
 void GameCodeNotFound() {
 	return;
 }

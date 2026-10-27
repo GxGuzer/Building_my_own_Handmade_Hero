@@ -19,34 +19,15 @@ bool Running = false;
 static Win32BitmapBuffer GlobalBackbuffer;
 
 ClientWindowDimension GetClientWindowDimension(HWND WindowHandle) {
-	ClientWindowDimension Result;
+	ClientWindowDimension ClientWindowDimension;
 
 	RECT ClientRect;
 	GetClientRect(WindowHandle, &ClientRect);
-	Result.Width = ClientRect.right - ClientRect.left;
-	Result.Height = ClientRect.bottom - ClientRect.top;
+	ClientWindowDimension.Width = ClientRect.right - ClientRect.left;
+	ClientWindowDimension.Height = ClientRect.bottom - ClientRect.top;
 
-	return Result;
+	return ClientWindowDimension;
 }
-
-/*void RenderGrad(BitmapBuffer Buffer, int32 XOffset, int32 YOffset) {
-
-	nat8 *Row = (nat8 *)Buffer.Memory;
-	for (int32 Y = 0; Y < Buffer.Height; Y++) {
-		nat32 *Pixel = (nat32 *)Row;
-		for (int32 X = 0; X < Buffer.Width; X++) {
-			
-			nat8 Red = X + XOffset;
-			nat8 Green = Y + YOffset;
-			nat8 Blue = 0;
-
-			*Pixel = ((Red << 16) | (Green << 8) | Blue);
-			*Pixel++;
-
-		}
-		Row += Buffer.Pitch;
-	}
-}*/
 
 // Bitmap creation and manipulation.
 static void ResizeDIBSection(Win32BitmapBuffer *Buffer, int32 Width, int32 Height) {
@@ -77,7 +58,7 @@ static void ResizeDIBSection(Win32BitmapBuffer *Buffer, int32 Width, int32 Heigh
 }
 
 static void DisplayBuffer(HDC DeviceContext, int32 WindowWidth, int32 WindowHeight, Win32BitmapBuffer Buffer) {
-	StretchDIBits(DeviceContext, 0, 0, WindowWidth, WindowHeight, 0, 0, Buffer.Width, Buffer.Height, Buffer.Memory, &Buffer.Info, DIB_RGB_COLORS, SRCCOPY);
+	StretchDIBits(DeviceContext, 0, 0, Buffer.Width, Buffer.Height, 0, 0, Buffer.Width, Buffer.Height, Buffer.Memory, &Buffer.Info, DIB_RGB_COLORS, SRCCOPY);
 }
 #pragma endregion
 
@@ -269,6 +250,7 @@ static void LoadXInputLib() {
 }
 
 static void ProcessKeyboardButton(GamepadButtonState *NewButtonState, bool32 IsPressed) {
+	Assert(NewButtonState->EndedDown != IsPressed); // NOTE: This can occur while switching windows. A more rigorous system is required to not trigger this.
 	NewButtonState->EndedDown = IsPressed;
 	++NewButtonState->TransitionCount;
 }
@@ -371,11 +353,9 @@ bool32 DEBUG_WriteFile(char *FileName, nat32 MemorySize, void *Memory) {
 
 inline FILETIME GetFileWriteTime(char *FileName) {
 	FILETIME LastWriteTime = {};
-	WIN32_FIND_DATA FileDataFound = {};
-	HANDLE FileFound = FindFirstFile(FileName, &FileDataFound);
-	if(FileFound != INVALID_HANDLE_VALUE) {
-		LastWriteTime = FileDataFound.ftLastWriteTime;
-		FindClose(FileFound);
+	WIN32_FILE_ATTRIBUTE_DATA FileData = {};
+	if(GetFileAttributesEx(FileName, GetFileExInfoStandard, &FileData)) {
+		LastWriteTime = FileData.ftLastWriteTime;
 	}
 	return LastWriteTime;
 }
@@ -502,25 +482,26 @@ static void DEBUG_DisplayAudioImageSync(Win32BitmapBuffer *Backbuffer, DEBUG_Sou
 }
 
 static void ConcatString(char *LeftString, char *RightString, l_string DestString) {
-	char *TargetCopy = LeftString;
-	char *TargetWrite = DestString;
 	int32 LStringSize = sizeof(l_string);
-	bool32 RightSide = false;
-	for(int32 Index = 0; Index <= LStringSize; Index++) {
-		if(Index >= LStringSize) {
-			DestString = {};
-			break;
-		}
-		if(*TargetCopy) {
+	int32 CharCount = 0;
+	for(char *Scan = LeftString; *Scan; Scan++) {
+		CharCount++;
+	}
+	for(char *Scan = RightString; *Scan; Scan++) {
+		CharCount++;
+	}
+	if(CharCount < LStringSize) {
+		char *TargetCopy = LeftString;
+		char *TargetWrite = DestString;
+		bool32 RightSide = false;
+		while(*TargetCopy) {
 			*TargetWrite++ = *TargetCopy++;
-		}else {
-			if(!RightSide) {
+			if(!RightSide && !(*TargetCopy)) {
 				TargetCopy = RightString;
 				RightSide = true;
-			}else {
-				break;
 			}
 		}
+		*TargetWrite = 0;
 	}
 }
 
@@ -543,47 +524,45 @@ static void DissectFullPath(l_string FullPath, l_string FolderPath, l_string Fil
 
 static void Win32BeginRecordInput(Win32State *Win32State, int32 InputIndex) {
 	Win32State->RecordingIndex = InputIndex;
-	string FileName = "InputPlayback.out";
-	Win32State->InputRecordFile = CreateFile(FileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+	Win32State->InputRecordFileHandle = CreateFile(Win32State->InputRecordFileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
 	DWORD BytesToWrite = (DWORD)(Win32State->TotalSize);
 	DWORD BytesWritten;
 	Assert(Win32State->TotalSize == BytesToWrite);
-	WriteFile(Win32State->InputRecordFile, Win32State->GameMemoryBlock, BytesToWrite, &BytesWritten, 0);
+	WriteFile(Win32State->InputRecordFileHandle, Win32State->GameMemoryBlock, BytesToWrite, &BytesWritten, 0);
 }
 
 static void Win32EndRecordInput(Win32State *Win32State) {
-	CloseHandle(Win32State->InputRecordFile);
+	CloseHandle(Win32State->InputRecordFileHandle);
 	Win32State->RecordingIndex = 0;
 }
 
 static void Win32BeginInputPlayback(Win32State *Win32State, int32 InputIndex) {
 	Win32State->PlayingIndex = InputIndex;
-	string FileName = "InputPlayback.out";
-	Win32State->InputPlaybackFile = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	Win32State->InputPlaybackFileHandle = CreateFile(Win32State->InputRecordFileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	DWORD BytesToRead = (DWORD)(Win32State->TotalSize);
 	DWORD BytesRead;
 	Assert(Win32State->TotalSize == BytesToRead);
-	ReadFile(Win32State->InputPlaybackFile, Win32State->GameMemoryBlock, BytesToRead, &BytesRead, 0);
+	ReadFile(Win32State->InputPlaybackFileHandle, Win32State->GameMemoryBlock, BytesToRead, &BytesRead, 0);
 }
 
 static void Win32EndInputPlayback(Win32State *Win32State) {
-	CloseHandle(Win32State->InputPlaybackFile);
+	CloseHandle(Win32State->InputPlaybackFileHandle);
 	Win32State->PlayingIndex = 0;
 }
 
 static void Win32RecordInput(Win32State *Win32State, gamepad_input *InputToRecord) {
 	DWORD BytesWritten;
-	WriteFile(Win32State->InputRecordFile, InputToRecord, sizeof(*InputToRecord), &BytesWritten, 0);
+	WriteFile(Win32State->InputRecordFileHandle, InputToRecord, sizeof(*InputToRecord), &BytesWritten, 0);
 }
 
 static void Win32PlaybackInput(Win32State *Win32State, gamepad_input *InputToRecord) {
 	DWORD BytesRead = 0;
-	if(ReadFile(Win32State->InputPlaybackFile, InputToRecord, sizeof(*InputToRecord), &BytesRead, 0)) {
+	if(ReadFile(Win32State->InputPlaybackFileHandle, InputToRecord, sizeof(*InputToRecord), &BytesRead, 0)) {
 		if(BytesRead == 0) {
 			int32 PlaybackIndex = Win32State->PlayingIndex;
 			Win32EndInputPlayback(Win32State);
 			Win32BeginInputPlayback(Win32State, PlaybackIndex);
-			ReadFile(Win32State->InputPlaybackFile, InputToRecord, sizeof(*InputToRecord), &BytesRead, 0)
+			ReadFile(Win32State->InputPlaybackFileHandle, InputToRecord, sizeof(*InputToRecord), &BytesRead, 0);
 		}
 	}
 }
@@ -658,9 +637,9 @@ static void WindowMsg(GameKeyboardState KeyInput, gamepad_controller_input *Keyb
 		switch(Message.message) {
 			case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: case WM_SYSKEYDOWN: {
 				KeyInput.VirtualKeycode = (nat32)Message.wParam;
-				KeyInput.WithAlt = (Message.lParam & (1 << 29));
-				KeyInput.WasPressed = (Message.lParam & (1 << 30));
-				KeyInput.IsPressed = !(Message.lParam & (1 << 31));
+				KeyInput.WithAlt = ((Message.lParam >> 29) & 1);
+				KeyInput.WasPressed = ((Message.lParam >> 30) & 1);
+				KeyInput.IsPressed = !((Message.lParam >> 31) & 1);
 				
 				if(KeyInput.WasPressed != KeyInput.IsPressed) {
 					switch(KeyInput.VirtualKeycode) {
@@ -772,8 +751,8 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	if(!RegisterClass(&WindowClass)) {
 		// Class not initialized, ERROR CATCH.
 	}
-
-	HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_SIZEBOX, 0, 0, 1120, 630, 0, 0, Instance, 0);
+	
+	HWND HandmadeHeroWindow = CreateWindowEx(0, WindowClass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_SIZEBOX, 0, 0, 1280, 720, 0, 0, Instance, 0);
 
 	if(HandmadeHeroWindow) {
 		Running = true;
@@ -816,13 +795,12 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	
 	// Memory setup.
 	Win32State Win32State = {};
-	
 	LPVOID BaseAddress = (LPVOID)(2 TB); // TODO: Remove on final build.
 	GameMemory GameMemory = {};
 	GameMemory.PermanentSize = 64 MB;
-	GameMemory.VolatileSize = 2 GB;
+	GameMemory.VolatileSize = 512 MB;
 	Win32State.TotalSize = GameMemory.PermanentSize + GameMemory.VolatileSize;
-	Win32State.GameMemoryBlock = VirtualAlloc(BaseAddress, Win32State.TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	Win32State.GameMemoryBlock = VirtualAlloc(BaseAddress, Win32State.TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE); // TODO: Make use of large paging if possible?
 	GameMemory.PermanentPtr = Win32State.GameMemoryBlock;
 	GameMemory.VolatilePtr = ((nat8 *)GameMemory.PermanentPtr + GameMemory.PermanentSize);
 	
@@ -830,8 +808,10 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 	GameMemory.DEBUG_WriteFile = DEBUG_WriteFile;
 	GameMemory.DEBUG_FreeFileMemory = DEBUG_FreeFileMemory;
 	
+	Win32State.InputRecordFileName = "InputRecord.out";
+	
 	// Render setup.
-	ResizeDIBSection(&GlobalBackbuffer, 1208, 720);
+	ResizeDIBSection(&GlobalBackbuffer, 1280, 720);
 	ShowWindow(HandmadeHeroWindow, ComandShow);
 
 	// Sound setup.
@@ -909,6 +889,7 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 			if(XInputGetState(controller_index, &controller_state) == ERROR_SUCCESS) {
 				// Colntroller connected.
 				new_controller->IsConnected = true;
+				new_controller->is_analog = old_controller->is_analog;
 				// Controller input collection.
 				XINPUT_GAMEPAD *gamepad_state = &controller_state.Gamepad;
 				
@@ -988,19 +969,6 @@ int WINAPI WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, PSTR ComandLine, 
 		LARGE_INTEGER TimeStampUpToAudio = GetSystemTimeStamp();
 		HRESULT GetBufferPositionResult = GlobalSecondarySoundBuffer->GetCurrentPosition(&SoundPlayCursor, &SoundWriteCursor);
 		if(GetBufferPositionResult == DS_OK) {
-			/*
-			SoundConfig.ChunkIndex = SoundWriteCursor / SoundConfig.ChunkSize;
-			WriteRegionLength = SoundConfig.ChunkSize;
-			
-			DWORD ChunkToWrite = (SoundConfig.ChunkIndex + 1) % SoundConfig.ChunkCount;
-			
-			if(ChunkToWrite != SoundConfig.LastChunk) {
-				WriteRegionOffset = ChunkToWrite * SoundConfig.ChunkSize;
-				SoundConfig.LastChunk = ChunkToWrite;
-				ValidSound = true;
-			}
-			*/
-			
 			// Calculate WriteRegionOffset.
 			if(!ValidSound) {
 				SoundConfig.RunningSampleIndex = SoundWriteCursor / SoundConfig.BytesPerSample;

@@ -64,9 +64,9 @@ struct Win32State {
 	nat64 TotalSize;
 	void *GameMemoryBlock;
 	
-	HANDLE InputRecordFile;
+	char *InputRecordFileName;
+	HANDLE InputRecordFileHandle;
 	int32 RecordingIndex;
-	
-	HANDLE InputPlaybackFile;
+	HANDLE InputPlaybackFileHandle;
 	int32 PlayingIndex;
 };

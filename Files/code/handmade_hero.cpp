@@ -20,9 +20,9 @@ void SineOutput(SoundBuffer *SoundBuffer, int32 ToneHertz, nat16 ToneVolume, rat
 
 void RenderGrad(BitmapBuffer *Buffer, int32 XOffset, int32 YOffset) {
 
-	nat8 *Row = (nat8 *)Buffer->Memory;
+	nat8 *Row = (nat8 *)(Buffer->Memory);
 	for (int32 Y = 0; Y < Buffer->Height; Y++) {
-		nat32 *Pixel = (nat32 *)Row;
+		nat32 *Pixel = (nat32 *)(Row);
 		for (int32 X = 0; X < Buffer->Width; X++) {
 			
 			nat8 Red = (nat8)(X + XOffset);
@@ -37,7 +37,46 @@ void RenderGrad(BitmapBuffer *Buffer, int32 XOffset, int32 YOffset) {
 	}
 }
 
-extern "C" void GameUpdate(GameMemory *Memory, BitmapBuffer *Buffer, GameKeyboardState *KeyState, gamepad_input *input_) {
+void RenderSquare(BitmapBuffer *Buffer, int32 XCoord, int32 YCoord, nat32 Color) {
+	int32 Size = 16;
+	int32 HalfSize = Size / 2;
+	int32 XMin = 0;
+	int32 XMax = 0;
+	if(XCoord < HalfSize) {
+		XMin = 0;
+		XMax = Size;
+	}else if(XCoord > (Buffer->Width - HalfSize)) {
+		XMin = Buffer->Width - Size;
+		XMax = Buffer->Width;
+	}else {
+		XMin = XCoord - HalfSize;
+		XMax = XCoord + HalfSize;
+	}
+	int32 YMin = 0;
+	int32 YMax = 0;
+	if(YCoord < HalfSize) {
+		YMin = 0;
+		YMax = Size;
+	}else if(YCoord > (Buffer->Height - HalfSize)) {
+		YMin = Buffer->Height - Size;
+		YMax = Buffer->Height;
+	}else {
+		YMin = YCoord - HalfSize;
+		YMax = YCoord + HalfSize;
+	}
+	
+	nat8 *Row = (nat8 *)(Buffer->Memory) + (YMin * Buffer->Pitch);
+	for(int32 Y = YMin; Y < YMax; Y++) {
+		nat32 *Pixel = (nat32 *)(Row) + XMin;
+		for(int32 X = XMin; X < XMax; X++) {
+			*Pixel = Color;
+			Pixel++;
+		}
+		Row += Buffer->Pitch;
+	}
+}
+
+extern "C" void GameUpdate(ThreadContext *Thread, GameMemory *Memory, BitmapBuffer *Buffer, GameKeyboardState *KeyState, gamepad_input *input_) {
 	Assert(sizeof(GameState) <= Memory->PermanentSize);
 	Assert((&input_->gamepad_controller[0].Terminator - &input_->gamepad_controller[0].GamepadButton[0]) == ArrayCount(input_->gamepad_controller[0].GamepadButton));
 
@@ -98,9 +137,17 @@ extern "C" void GameUpdate(GameMemory *Memory, BitmapBuffer *Buffer, GameKeyboar
 	}
 
 	RenderGrad(Buffer, State->Render.XOffset, State->Render.YOffset);
+	nat8 Red = (input_->MouseButtons[0].EndedDown) ? 0xFF : 0;
+	nat8 Green = (input_->MouseButtons[1].EndedDown) ? 0xFF : 0;
+	nat8 Blue = (input_->MouseButtons[2].EndedDown) ? 0xFF : 0;
+	nat32 Color = ((Red << 16) | (Green << 8) | Blue);
+	if(Color == 0) {
+		Color = 0xFFFFFFFF;
+	}
+	RenderSquare(Buffer, input_->MouseX, input_->MouseY, Color);
 }
 
-extern "C" void GameSoundOutput(GameMemory *Memory, SoundBuffer *Buffer) {
+extern "C" void GameSoundOutput(ThreadContext *Thread, GameMemory *Memory, SoundBuffer *Buffer) {
 	GameState *State = (GameState *)Memory->PermanentPtr;
 	if(!Memory->Initialized) {
 		State->Sound.ToneVolume = 4000;

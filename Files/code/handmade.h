@@ -45,37 +45,6 @@ nat32 Truncate64bitsTo32bits(nat64 UInt64) {
 	return (nat32)UInt64;
 }
 
-#pragma region OS to Game
-// TODO: Put here things that are retrieved from the OS.
-/*
-IMPORTANT: These functions aren't protective and should not be present on the end code.
-	For example, the write may be interrupted mid writing thus leading to a corrupt file.
-*/
-struct DEBUG_FileRead {
-	nat32 FileSize;
-	void *FileContent;
-};
-typedef DEBUG_FileRead DEBUG_ReadFileFunction(char *FileName);
-typedef bool32 DEBUG_WriteFileFunction(char *FileName, nat32 MemorySize, void *Memory);
-typedef void DEBUG_FreeFileMemoryFunction(void *Memory);
-#pragma endregion
-
-#pragma region Game to OS
-// TODO: Put here things that are sent to the OS.
-#pragma endregion
-
-struct GameMemory {
-	bool32 Initialized;
-	nat64 PermanentSize;
-	void *PermanentPtr; // Memory is required to be initialized to zero, it must be done if the platform layer doesn't do it.
-	nat64 VolatileSize;
-	void *VolatilePtr;
-	
-	DEBUG_ReadFileFunction *DEBUG_ReadFile;
-	DEBUG_WriteFileFunction *DEBUG_WriteFile;
-	DEBUG_FreeFileMemoryFunction *DEBUG_FreeFileMemory;
-};
-
 struct RenderState {
 	int32 XOffset;
 	int32 YOffset;
@@ -166,6 +135,11 @@ struct gamepad_controller_input {
 };
 
 struct gamepad_input {
+	GamepadButtonState MouseButtons[5];
+	int32 MouseX;
+	int32 MouseY;
+	int32 Wheel;
+	
 	gamepad_controller_input gamepad_controller[5];
 };
 
@@ -174,11 +148,47 @@ inline gamepad_controller_input *GetController(gamepad_input *GamepadInput, int3
 	return &GamepadInput->gamepad_controller[GamepadIndex];
 }
 
+#pragma region OS to Game
+// TODO: Put here things that are retrieved from the OS.
+
+struct ThreadContext {
+	int32 Placeholder; // NOTE: For future use on multi-threading.
+};
+
+/*
+IMPORTANT: These functions aren't protective and should not be present on the end code.
+For example, the write may be interrupted mid writing thus leading to a corrupt file.
+*/
+struct DEBUG_FileRead {
+	nat32 FileSize;
+	void *FileContent;
+};
+typedef DEBUG_FileRead DEBUG_ReadFileFunction(char *FileName);
+typedef bool32 DEBUG_WriteFileFunction(char *FileName, nat32 MemorySize, void *Memory);
+typedef void DEBUG_FreeFileMemoryFunction(void *Memory);
+
+struct GameMemory {
+	bool32 Initialized;
+	nat64 PermanentSize;
+	void *PermanentPtr; // Memory is required to be initialized to zero, it must be done if the platform layer doesn't do it.
+	nat64 VolatileSize;
+	void *VolatilePtr;
+	
+	DEBUG_ReadFileFunction *DEBUG_ReadFile;
+	DEBUG_WriteFileFunction *DEBUG_WriteFile;
+	DEBUG_FreeFileMemoryFunction *DEBUG_FreeFileMemory;
+};
+#pragma endregion
+
+#pragma region Game to OS
+// TODO: Put here things that are sent to the OS.
+
 // NOTE: Remove this stub and set and check the function pointers to zero if there are conflicting tokens.
 void GameCodeNotFound() {
 	return;
 }
 
-typedef void GameUpdateFunction(GameMemory *Memory, BitmapBuffer *Buffer, GameKeyboardState *KeyState, gamepad_input *input_);
+typedef void GameUpdateFunction(ThreadContext *Thread, GameMemory *Memory, BitmapBuffer *Buffer, GameKeyboardState *KeyState, gamepad_input *input_);
 
-typedef void GameSoundFunction(GameMemory *Memory, SoundBuffer *Buffer);
+typedef void GameSoundFunction(ThreadContext *Thread, GameMemory *Memory, SoundBuffer *Buffer);
+#pragma endregion

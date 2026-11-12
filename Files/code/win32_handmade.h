@@ -60,9 +60,17 @@ struct Win32GameCode {
 	FILETIME LastWriteTime;
 };
 
+struct Win32ReplayBuffer {
+	HANDLE FileHandle;
+	HANDLE FileMap;
+	l_string InputRecordFileName;
+	void *MemoryBlock;
+};
+
 struct Win32State {
 	nat64 TotalSize;
 	void *GameMemoryBlock;
+	Win32ReplayBuffer ReplayBuffers[4];
 	
 	char *InputRecordFileName;
 	HANDLE InputRecordFileHandle;

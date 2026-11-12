@@ -1077,3 +1077,21 @@ It is that simple, I thought I would have a bigger section for this.
 It's possible to keep the game window always above all with the `WS_EX_TOPMOST` extended style flag, which causes the window to never visually fall onto background.
 
 To make it more useful, it's possible to define a transparency for the window when it's whether active or unactive, for that, one must use the `WS_EX_LAYERED` extended style flag, and the transparency can be set with the `SetLayeredWindowAttributes()` function and `LWA_ALPHA` flag on the flag parameter. To use this, the window class can't have the `CS_OWNDC` flag.
+
+# 30/10/2026
+
+## Getting the actual monitor refresh rate
+
+To retrieve the monitor refresh rate on Win32 platform, the function `GetDeviceCaps()` provides the means for that. It requires, as parameters, the device context obtained with `GetDC()` and information index, that is what specific info you want to retrieve, these indexes can be seen at (Microsoft's official documentation)[https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-getdevicecaps].
+
+# 11/11/2026
+
+## Memory-mapped files
+
+A memory-mapped file is a part of memory that is directly mapped to a file resource on disk (or other devices with file-like resources). Everytime a write is made on memory, it is automatically committed to a file, or page-cache. That makes faster to write our memory into disk, speeding up our input recording process.
+
+## Creating a memory map
+
+Firstly we need a file-map object, such object can be created with the `CreateFileMapping()` function. It receives as parameters: A handle to a file in which to create the file-map object; Page protection flags to allow different types of operations; The high and low word of the file-map size; And optionally, a pointer to a `SECURITY_ATTRIBUTES` structure, and a name if you need to reference the object by name.
+
+Now to map our portion of virtual memory into a file-map, we must call `MapViewOfFile()`, from this point, every write or read operation to the file we mapped, will be converted into memory operations by the system, which will commit those memory changes to disk.

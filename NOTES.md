@@ -1095,3 +1095,54 @@ A memory-mapped file is a part of memory that is directly mapped to a file resou
 Firstly we need a file-map object, such object can be created with the `CreateFileMapping()` function. It receives as parameters: A handle to a file in which to create the file-map object; Page protection flags to allow different types of operations; The high and low word of the file-map size; And optionally, a pointer to a `SECURITY_ATTRIBUTES` structure, and a name if you need to reference the object by name.
 
 Now to map our portion of virtual memory into a file-map, we must call `MapViewOfFile()`, from this point, every write or read operation to the file we mapped, will be converted into memory operations by the system, which will commit those memory changes to disk.
+
+# 13/11/2026
+
+## What does "architecture" means in programming
+
+The word "architecture" implies a detailed planning of what is meant to be built. On civil engineering, the architect provides a blueprint that features the detailed structure of a building down to every single specific feature, like piping, and wiring, alongside to room layouts.
+
+In programming, the word "architecture" does not imply such planning. What is usually said is the overall rough design of a software behavior, but the actual detailed blueprint of instructions is already the program written.
+
+In short, the word "architecture" in programming actually refers to the macro design of such program, and not the detailed structure of the program instructions.
+
+## Good paradigms for designing an architecture
+
+### Separation/Boundary/Modularity
+
+The act of leaving each subsystem self-contained without dependencies on others. Such subsystems would just need the data to be structured on a useful way before working in it.
+
+Some advantages of this modularity includes:
+- Reusability: A subsystem can be applied elsewhere or in other projects, without the necessity of re-writing it. It saves time.
+- Division of labor: In case of teams, a self-contained subsystem would enhance the comunication of a team, because if a sector is working on only one subsystem without changing other, thus greatly reducing, or eliminating complety, the chance of a difference collision, where different sectors would change the same code to fulfill their different problems, leading to a mismatch.
+- Mental clarity: The more self-contained a subsystem is, the less it is prone to have others in consideration while changing it. If a subsystem isn't self-contained, the alteration of any feature would need to consider N other subsystems. As the number of dependant subsystems increases, it becomes harder and harder to keep track of what to consider upon an alteration.
+
+### Metrics for an architecture
+
+An architecture can have its efficiency measured based on how well it performs within a few parameters:
+- Temporal coupling: The time on which each subsystem is evoked. f.e. if the rendering subsystem draws objects on screen, and the physics subsystem tell where objects are, it is interesting to leave the physics work on the data before the rendering, instead of calling each randomly.
+- Layout coupling: How two subsystems cooperate with the data. f.e. If the physics subsystem outputs data the rendering can work-on.
+- Idealogical coupling: What the subsystem supports, and how it can be applied, if it depends or supports a major system feature to be worked on (f.e multi-threading, use of memory, computational width). This is more applied with the reusability factor.
+- Fluidity: The ability to keep changing pieces of code or archicteture, where they happen to go wrong. As a project increases in complexity fluidity becomes harder as one alteration of a subsystem can make many others break.
+
+## Casey's game architecture
+
+A game has only three jobs to do: Process input, update its state, and render.
+
+Some game architectures introduce Update() and Render() as separate steps, but it's better for performance if we tight the update stage and render stage as close as possible, because it increase the chance of all needed data to still be in cache making such step faster.
+
+Then we proceed to process the sound output, which is simply laying down specific audio to a buffer depending on the context.
+
+### Programmers don't render
+
+Nowadays all rendering work is done by a GPU. We don't use it yet, but to our case "render" means more like "preparing to render"; we will just pass and organize the data and buffer to the graphics process, which we still will be doing by CPU and not GPU.
+
+### Loading architecture
+
+You can make two ways to load necessary resources to the game. The called "**Loading Screen**" philosophy is whether, when a change event is called, the game stops and starts the service of loading resources. The other way is the "**Streaming**" philosophy, that is to keep a two-way communication between the game and loading service, and request for resources on demand.
+
+### Immediate Mode vs. Retained Mode APIs
+
+**Immediate Mode** is an API paradigm in which caller of that API has no concern or awareness of the current state of the calling. For example, when setting a blending mode on a graphics API, you won't have to unset that mode, if anyone wants a different mode on a certain point, he has to set that different mode.
+
+**Retained Mode** is an API paradigm in which the caller must be aware of states inside of that API. For example, when sending a mesh and creating a node on a graphics API, the caller should be aware of the state of that objects, and at some point release them from the API.
